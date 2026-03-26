@@ -21,7 +21,7 @@ require (
 	github.com/hashicorp/golang-lru/v2 v2.0.7
 	github.com/mark3labs/mcp-go v0.32.0
 	github.com/mattn/go-shellwords v1.0.12
-	github.com/mattn/go-sqlite3 v1.14.19
+	github.com/mattn/go-sqlite3 v1.14.24
 	github.com/nats-io/nats.go v1.44.0
 	github.com/pkg/sftp v1.13.6
 	github.com/prometheus/client_golang v1.17.0
@@ -32,7 +32,6 @@ require (
 	golang.org/x/sys v0.43.0
 	google.golang.org/api v0.155.0
 	gopkg.in/yaml.v2 v2.4.0
-	modernc.org/sqlite v1.44.3
 )
 
 require (
@@ -45,11 +44,7 @@ require (
 	github.com/pkg/xattr v0.4.9 // indirect
 	github.com/remyoudompheng/bigfft v0.0.0-20230129092748-24d4a6f8daec // indirect
 	github.com/sirupsen/logrus v1.9.3 // indirect
-	golang.org/x/exp v0.0.0-20251023183803-a4bb9ffd2546 // indirect
 	golang.org/x/sync v0.20.0
-	modernc.org/libc v1.67.6 // indirect
-	modernc.org/mathutil v1.7.1 // indirect
-	modernc.org/memory v1.11.0 // indirect
 )
 
 require (
@@ -63,6 +58,7 @@ require (
 	github.com/pierrec/lz4/v4 v4.1.22
 	github.com/stretchr/testify v1.11.1
 	golang.org/x/crypto/x509roots/fallback v0.0.0-20260209214922-2f26647a795e
+	modernc.org/sqlite v1.47.0
 )
 
 require (
@@ -137,4 +133,9 @@ require (
 	google.golang.org/grpc v1.79.3 // indirect
 	google.golang.org/protobuf v1.36.10 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
+	modernc.org/libc v1.70.0 // indirect
+	modernc.org/mathutil v1.7.1 // indirect
+	modernc.org/memory v1.11.0 // indirect
 )
+
+replace github.com/mattn/go-sqlite3 => github.com/0xCarbon/go-sqlite3 v1.14.25-0.20260326160521-dcc5c0f1fb0b

@@ -27,7 +27,7 @@ import (
 	"syscall"
 	"time"
 
-	_ "modernc.org/sqlite"
+	_ "github.com/mattn/go-sqlite3"
 
 	"github.com/benbjohnson/litestream"
 	"github.com/benbjohnson/litestream/s3"
@@ -170,7 +170,7 @@ func restoreIfNotExists(ctx context.Context, client *s3.ReplicaClient, dbPath st
 
 func openAppDB(_ context.Context, path string) (*sql.DB, error) {
 	dsn := fmt.Sprintf("file:%s?_pragma=busy_timeout(5000)&_pragma=journal_mode(wal)", path)
-	return sql.Open("sqlite", dsn)
+	return sql.Open("sqlite3", dsn)
 }
 
 func initSchema(ctx context.Context, db *sql.DB) error {

@@ -20,8 +20,8 @@ import (
 
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
+	"github.com/mattn/go-sqlite3"
 	"github.com/superfly/ltx"
-	"modernc.org/sqlite"
 
 	"github.com/benbjohnson/litestream/internal"
 )
@@ -195,6 +195,10 @@ type DB struct {
 
 	// Where to send log messages, defaults to global slog with database epath.
 	Logger *slog.Logger
+
+	// EncryptionKey is the SQLCipher PRAGMA key for this database.
+	// If non-empty, set on litestreamDriver before opening connections.
+	EncryptionKey string
 }
 
 // NewDB returns a new instance of DB for a given path.
@@ -770,6 +774,8 @@ func (db *DB) syncReplicaWithRetry(ctx context.Context) error {
 
 // setPersistWAL sets the PERSIST_WAL file control on the database connection.
 // This prevents SQLite from removing the WAL file when connections close.
+// With the mattn/go-sqlite3 driver, PERSIST_WAL is set in the ConnectHook
+// (see litestreamDriver in litestream.go), so this is a per-connection Raw call.
 func (db *DB) setPersistWAL(ctx context.Context) error {
 	conn, err := db.db.Conn(ctx)
 	if err != nil {
@@ -778,17 +784,11 @@ func (db *DB) setPersistWAL(ctx context.Context) error {
 	defer conn.Close()
 
 	return conn.Raw(func(driverConn interface{}) error {
-		fc, ok := driverConn.(sqlite.FileControl)
+		sqliteConn, ok := driverConn.(*sqlite3.SQLiteConn)
 		if !ok {
-			return fmt.Errorf("driver does not implement FileControl")
+			return fmt.Errorf("driver connection is not *sqlite3.SQLiteConn")
 		}
-
-		_, err := fc.FileControlPersistWAL("main", 1)
-		if err != nil {
-			return fmt.Errorf("FileControlPersistWAL: %w", err)
-		}
-
-		return nil
+		return sqliteConn.SetFileControlInt("main", sqlite3.SQLITE_FCNTL_PERSIST_WAL, 1)
 	})
 }
 
@@ -815,10 +815,14 @@ func (db *DB) init(ctx context.Context) (err error) {
 	}
 	db.dirInfo = fi
 
-	dsn := fmt.Sprintf("file:%s?_pragma=busy_timeout(%d)&_pragma=wal_autocheckpoint(0)",
-		db.path, db.BusyTimeout.Milliseconds())
+	dsn := db.path
+	dsn += fmt.Sprintf("?_busy_timeout=%d", db.BusyTimeout.Milliseconds())
 
-	if db.db, err = sql.Open("sqlite", dsn); err != nil {
+	// If encrypted with SQLCipher, set the key on the shared driver so
+	// PRAGMA key is the first SQL after sqlite3_open_v2().
+	litestreamDriver.EncryptionKey = db.EncryptionKey
+
+	if db.db, err = sql.Open("litestream-sqlite3", dsn); err != nil {
 		return err
 	}
 
@@ -850,6 +854,11 @@ func (db *DB) init(ctx context.Context) (err error) {
 		return err
 	} else if mode != "wal" {
 		return fmt.Errorf("enable wal failed, mode=%q", mode)
+	}
+
+	// Disable autocheckpoint for litestream's connection.
+	if _, err := db.db.ExecContext(ctx, `PRAGMA wal_autocheckpoint = 0;`); err != nil {
+		return fmt.Errorf("disable autocheckpoint: %w", err)
 	}
 
 	// Create a table to force writes to the WAL when empty.
