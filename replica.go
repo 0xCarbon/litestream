@@ -768,7 +768,7 @@ func (r *Replica) Restore(ctx context.Context, opt RestoreOptions) (err error) {
 	}
 
 	if opt.IntegrityCheck != IntegrityCheckNone {
-		if err := checkIntegrity(ctx, opt.OutputPath, opt.IntegrityCheck); err != nil {
+		if err := checkIntegrity(ctx, opt.OutputPath, r.db.EncryptionKey, opt.IntegrityCheck); err != nil {
 			if ctx.Err() == nil {
 				_ = os.Remove(opt.OutputPath)
 				_ = os.Remove(opt.OutputPath + "-shm")
@@ -1161,7 +1161,7 @@ func (r *Replica) RestoreV3(ctx context.Context, opt RestoreOptions) error {
 	}
 
 	if opt.IntegrityCheck != IntegrityCheckNone {
-		if err := checkIntegrity(ctx, opt.OutputPath, opt.IntegrityCheck); err != nil {
+		if err := checkIntegrity(ctx, opt.OutputPath, r.db.EncryptionKey, opt.IntegrityCheck); err != nil {
 			if ctx.Err() == nil {
 				_ = os.Remove(opt.OutputPath)
 				_ = os.Remove(opt.OutputPath + "-shm")
@@ -1266,7 +1266,7 @@ func (r *Replica) applyWALSegmentsV3(ctx context.Context, client ReplicaClientV3
 			return err
 		}
 		f = nil
-		if err = checkpointV3(dbPath); err != nil {
+		if err = checkpointV3(dbPath, r.db.EncryptionKey); err != nil {
 			return err
 		}
 		r.Logger().Debug("applied WAL index", "generation", generation, "index", expectedIndex-1, "bytes", offset)
@@ -1317,8 +1317,9 @@ func (r *Replica) appendWALSegmentV3(ctx context.Context, client ReplicaClientV3
 }
 
 // checkpointV3 checkpoints the WAL file into the database.
-func checkpointV3(dbPath string) error {
-	db, err := sql.Open("sqlite", dbPath)
+func checkpointV3(dbPath, encryptionKey string) error {
+	litestreamDriver.EncryptionKey = encryptionKey
+	db, err := sql.Open("litestream-sqlite3", dbPath)
 	if err != nil {
 		return err
 	}
@@ -1329,12 +1330,13 @@ func checkpointV3(dbPath string) error {
 }
 
 // checkIntegrity runs a SQLite integrity check on the database at dbPath.
-func checkIntegrity(ctx context.Context, dbPath string, mode IntegrityCheckMode) error {
+func checkIntegrity(ctx context.Context, dbPath, encryptionKey string, mode IntegrityCheckMode) error {
 	if mode == IntegrityCheckNone {
 		return nil
 	}
 
-	db, err := sql.Open("sqlite", dbPath)
+	litestreamDriver.EncryptionKey = encryptionKey
+	db, err := sql.Open("litestream-sqlite3", dbPath)
 	if err != nil {
 		return fmt.Errorf("open database for integrity check: %w", err)
 	}
