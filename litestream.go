@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"encoding/binary"
 	"errors"
+	"fmt"
 	"io"
 	"os"
 	"path"
@@ -11,9 +12,24 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/mattn/go-sqlite3"
 	"github.com/superfly/ltx"
-	_ "modernc.org/sqlite"
 )
+
+// litestreamDriver is the shared driver instance. Its EncryptionKey field
+// is set before opening databases to inject PRAGMA key as the first SQL.
+var litestreamDriver = &sqlite3.SQLiteDriver{
+	ConnectHook: func(conn *sqlite3.SQLiteConn) error {
+		if err := conn.SetFileControlInt("main", sqlite3.SQLITE_FCNTL_PERSIST_WAL, 1); err != nil {
+			return fmt.Errorf("cannot set file control: %w", err)
+		}
+		return nil
+	},
+}
+
+func init() {
+	sql.Register("litestream-sqlite3", litestreamDriver)
+}
 
 // Naming constants.
 const (
