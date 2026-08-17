@@ -8,10 +8,13 @@
     "url": "https://github.com/benbjohnson/litestream"
   },
   "license": "Apache-2.0",
-  "keywords": ["sqlite", "litestream", "vfs", "replication"],
+  "keywords": [
+    "sqlite",
+    "litestream",
+    "vfs",
+    "replication"
+  ],
   "optionalDependencies": {
-    "litestream-vfs-darwin-arm64": "0.0.0",
-    "litestream-vfs-darwin-amd64": "0.0.0",
     "litestream-vfs-linux-arm64": "0.0.0",
     "litestream-vfs-linux-amd64": "0.0.0"
   }

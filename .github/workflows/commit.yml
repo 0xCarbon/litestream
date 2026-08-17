@@ -30,9 +30,9 @@ jobs:
 
       - uses: pre-commit/action@v3.0.0
 
-  vfs-build-test:
-    name: VFS Build Test (macOS)
-    runs-on: macos-latest
+  vfs-test:
+    name: VFS Tests
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 
@@ -40,11 +40,10 @@ jobs:
         with:
           go-version-file: "go.mod"
 
-      - name: Build VFS shared library
-        run: make vfs
-
-      - name: Verify shared library created
-        run: file dist/litestream-vfs.so
+      # The VFS suite (including SkipJournalPatch and short-read guards) is
+      # gated behind the vfs build tag and is not covered by the plain test job.
+      - name: Run VFS tests
+        run: go test -tags=vfs .
 
   vfs-build-test-linux:
     name: VFS Build Test (Linux)
@@ -62,26 +61,12 @@ jobs:
       - name: Verify shared library created
         run: file dist/litestream-vfs-linux-amd64.so
 
-  build-windows:
-    name: Build Windows
-    runs-on: ubuntu-latest
-    steps:
-      - run: sudo apt-get install -y mingw-w64
-
-      - uses: actions/checkout@v4
-
-      - uses: actions/setup-go@v5
-        with:
-          go-version-file: "go.mod"
-
-      - run: |
-          go build ./cmd/litestream/
-          file ./litestream.exe
-        env:
-          CGO_ENABLED: "1"
-          GOOS: windows
-          GOARCH: amd64
-          CC: x86_64-w64-mingw32-gcc
+      # The extension embeds SQLCipher; without -lcrypto on the link line the
+      # .so builds but is unloadable (undefined EVP_* symbols). Catch it here.
+      - name: Load extension into sqlite3
+        run: |
+          sudo apt-get update && sudo apt-get install -y sqlite3 libsqlite3-0
+          LITESTREAM_REPLICA_URL=file:///tmp/replica             sqlite3 :memory: ".load dist/litestream-vfs-linux-amd64.so sqlite3_litestreamvfs_init"
 
   docker-smoke-test:
     name: Docker Smoke Test

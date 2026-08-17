@@ -10,7 +10,8 @@ import (
 	"testing"
 
 	"github.com/superfly/ltx"
-	_ "modernc.org/sqlite"
+
+	_ "github.com/mattn/go-sqlite3"
 
 	"github.com/benbjohnson/litestream"
 )

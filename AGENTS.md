@@ -1,6 +1,6 @@
 # AGENTS.md - Litestream AI Agent Guide
 
-Litestream is a disaster recovery tool for SQLite that runs as a background process, monitors the WAL, converts changes to immutable LTX files, and replicates them to cloud storage. It uses `modernc.org/sqlite` (pure Go, no CGO required).
+Litestream is a disaster recovery tool for SQLite that runs as a background process, monitors the WAL, converts changes to immutable LTX files, and replicates them to cloud storage. This fork uses `mattn/go-sqlite3` (via the 0xCarbon fork with bundled SQLCipher) — CGO is required and libcrypto is linked.
 
 ## Before You Start
 
@@ -71,3 +71,39 @@ Before submitting changes:
 - [ ] Run `pre-commit run --all-files`
 - [ ] For page iteration: test with >1GB databases
 - [ ] Show investigation evidence in PR (see [AI_PR_GUIDE.md](AI_PR_GUIDE.md))
+
+## Fork Deltas (0xCarbon)
+
+This fork tracks upstream `benbjohnson/litestream` and adds:
+
+- **Driver**: per-database `mattn/go-sqlite3` driver instances (registered as
+  `litestream-sqlite3-<seq>`), each carrying its database's SQLCipher key;
+  see `registerSQLiteDriver` in `litestream.go`.
+- **Encryption**: `DB.EncryptionKey` (string: bare `x'…'` raw-key blob is
+  auto-quoted; quoted literals `'passphrase'`/`"x'…'"` pass through) and
+  `DB.EncryptionKeyBytes` (raw bytes; takes precedence). Keys are applied as
+  the first statement of every pooled connection; set before Open.
+- **VFS**: `VFS.SkipJournalPatch` / `VFSFile.SkipJournalPatch` disable the
+  page-1 journal-mode emulation patch, required for SQLCipher databases
+  (plaintext bytes 18-19/24-28 must not be rewritten on ciphertext pages).
+- **Mandatory consumer replace**: Go ignores this module's `replace`
+  directives when litestream is imported as a dependency. Every consuming
+  module MUST carry its own replace or the build fails with
+  `EncryptionKey`/`EncryptionKeyBytes` undefined on the upstream driver:
+
+      replace github.com/mattn/go-sqlite3 => github.com/0xCarbon/go-sqlite3 v1.14.38-0.20260515201505-c8f057756220
+
+- **Pin policy**: consumer modules pin this fork via the `pin/<sha>` branches
+  (e.g. `pin/7a606e384ee9`); never force-push or delete them.
+- **Build**: CGO required; SQLCipher links libcrypto (see Dockerfile and CI
+  workflows). Pure-Go (modernc) builds are not supported in this fork.
+  macOS/Windows targets (binary and VFS extension) are dropped: the fork's
+  unconditional SQLCIPHER_CRYPTO_OPENSSL needs OpenSSL headers/keg paths that
+  stock runners do not provide; fork consumers are Linux.
+- **Durability**: litestream's own connections run `synchronous=FULL` (DSN
+  `_sync=FULL`), matching upstream's modernc default. Consumer connections
+  through the mattn fork default to `synchronous=NORMAL` — pass `_sync=FULL`
+  in your DSN if you need the stricter behavior.
+- **CLI**: the `litestream` binary is encryption-blind — there is no key
+  configuration; SQLCipher is a library-only feature via `DB.EncryptionKey`
+  and `DB.EncryptionKeyBytes`.

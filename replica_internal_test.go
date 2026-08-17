@@ -14,9 +14,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/mattn/go-sqlite3"
 	"github.com/superfly/ltx"
-
-	_ "modernc.org/sqlite"
 )
 
 func TestReplica_ApplyNewLTXFiles_FillGapWithOverlappingCompactedFile(t *testing.T) {
@@ -381,7 +380,7 @@ func ltxFixtureKey(level int, minTXID, maxTXID ltx.TXID) string {
 func mustCreateValidSQLiteDB(tb testing.TB) string {
 	tb.Helper()
 	dbPath := filepath.Join(tb.TempDir(), "test.db")
-	db, err := sql.Open("sqlite", dbPath)
+	db, err := sql.Open("sqlite3", dbPath)
 	if err != nil {
 		tb.Fatal(err)
 	}
@@ -398,22 +397,27 @@ func mustCreateValidSQLiteDB(tb testing.TB) string {
 	return dbPath
 }
 
+func testDriver(tb testing.TB) *sqlite3.SQLiteDriver {
+	tb.Helper()
+	return newSQLiteDriver("", nil)
+}
+
 func TestCheckIntegrity_Quick_ValidDB(t *testing.T) {
 	dbPath := mustCreateValidSQLiteDB(t)
-	if err := checkIntegrity(context.Background(), dbPath, IntegrityCheckQuick); err != nil {
+	if err := checkIntegrity(context.Background(), dbPath, testDriver(t), IntegrityCheckQuick); err != nil {
 		t.Fatalf("expected no error, got: %v", err)
 	}
 }
 
 func TestCheckIntegrity_Full_ValidDB(t *testing.T) {
 	dbPath := mustCreateValidSQLiteDB(t)
-	if err := checkIntegrity(context.Background(), dbPath, IntegrityCheckFull); err != nil {
+	if err := checkIntegrity(context.Background(), dbPath, testDriver(t), IntegrityCheckFull); err != nil {
 		t.Fatalf("expected no error, got: %v", err)
 	}
 }
 
 func TestCheckIntegrity_None_Skips(t *testing.T) {
-	if err := checkIntegrity(context.Background(), "/nonexistent/path.db", IntegrityCheckNone); err != nil {
+	if err := checkIntegrity(context.Background(), "/nonexistent/path.db", testDriver(t), IntegrityCheckNone); err != nil {
 		t.Fatalf("expected nil for IntegrityCheckNone, got: %v", err)
 	}
 }
@@ -452,7 +456,7 @@ func TestCheckIntegrity_CorruptDB(t *testing.T) {
 	}
 	_ = f.Close()
 
-	err = checkIntegrity(context.Background(), dbPath, IntegrityCheckFull)
+	err = checkIntegrity(context.Background(), dbPath, testDriver(t), IntegrityCheckFull)
 	if err == nil {
 		t.Fatal("expected integrity check to fail on corrupt database")
 	}

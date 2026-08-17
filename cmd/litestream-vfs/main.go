@@ -38,6 +38,12 @@ import (
 
 func main() {}
 
+// envFlag reports whether the named environment variable is set to "true"
+// (case-insensitive), the extension's boolean convention.
+func envFlag(name string) bool {
+	return strings.ToLower(os.Getenv(name)) == "true"
+}
+
 //export LitestreamVFSRegister
 func LitestreamVFSRegister() *C.char {
 	var client litestream.ReplicaClient
@@ -79,7 +85,7 @@ func LitestreamVFSRegister() *C.char {
 	vfs := litestream.NewVFS(client, logger)
 
 	// Configure write support if enabled.
-	if strings.ToLower(os.Getenv("LITESTREAM_WRITE_ENABLED")) == "true" {
+	if envFlag("LITESTREAM_WRITE_ENABLED") {
 		vfs.WriteEnabled = true
 
 		if s := os.Getenv("LITESTREAM_SYNC_INTERVAL"); s != "" {
@@ -96,12 +102,18 @@ func LitestreamVFSRegister() *C.char {
 	}
 
 	// Configure hydration support if enabled.
-	if strings.ToLower(os.Getenv("LITESTREAM_HYDRATION_ENABLED")) == "true" {
+	if envFlag("LITESTREAM_HYDRATION_ENABLED") {
 		vfs.HydrationEnabled = true
 
 		if s := os.Getenv("LITESTREAM_HYDRATION_PATH"); s != "" {
 			vfs.HydrationPath = s
 		}
+	}
+
+	// SQLCipher replicas must skip the page-1 journal-mode patch or the
+	// ciphertext HMAC breaks on read.
+	if envFlag("LITESTREAM_SKIP_JOURNAL_PATCH") {
+		vfs.SkipJournalPatch = true
 	}
 
 	if err := sqlite3vfs.RegisterVFS("litestream", vfs); err != nil {

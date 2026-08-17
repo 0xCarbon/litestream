@@ -34,9 +34,13 @@ jobs:
           path: litestream-base
           key: pr-metrics-base-${{ github.event.pull_request.base.sha }}-${{ steps.setup-go.outputs.go-version }}
 
+      - name: Install C toolchain (SQLCipher links libcrypto)
+        if: steps.cache-base.outputs.cache-hit != 'true'
+        run: sudo apt-get update && sudo apt-get install -y gcc libssl-dev
+
       - name: Build base binary
         if: steps.cache-base.outputs.cache-hit != 'true'
-        run: CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -ldflags "-s -w" -o litestream-base ./cmd/litestream
+        run: CGO_ENABLED=1 GOOS=linux GOARCH=amd64 go build -ldflags "-s -w" -o litestream-base ./cmd/litestream
 
       - name: Record base binary size
         run: stat --format=%s litestream-base > base-size.txt
@@ -58,10 +62,13 @@ jobs:
         with:
           go-version-file: go.mod
 
+      - name: Install C toolchain (SQLCipher links libcrypto)
+        run: sudo apt-get update && sudo apt-get install -y gcc libssl-dev
+
       - name: Build PR binary
         run: |
           START=$SECONDS
-          CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -ldflags "-s -w" -o litestream-pr ./cmd/litestream
+          CGO_ENABLED=1 GOOS=linux GOARCH=amd64 go build -ldflags "-s -w" -o litestream-pr ./cmd/litestream
           echo "$((SECONDS - START))" > build-time.txt
           go version | awk '{print $3}' > go-version.txt
 

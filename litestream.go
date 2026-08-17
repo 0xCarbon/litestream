@@ -1,19 +1,90 @@
 package litestream
 
 import (
+	"bytes"
+	"context"
 	"database/sql"
+	"database/sql/driver"
 	"encoding/binary"
 	"errors"
+	"fmt"
 	"io"
 	"os"
 	"path"
 	"path/filepath"
+	"regexp"
 	"strconv"
 	"strings"
 
+	"github.com/mattn/go-sqlite3"
 	"github.com/superfly/ltx"
-	_ "modernc.org/sqlite"
 )
+
+// normalizeEncryptionKey adapts a key string for the driver's raw
+// `PRAGMA key = %s;` interpolation. SQLite's PRAGMA grammar accepts only a
+// string literal on the right-hand side, so a bare blob literal (x'…') or a
+// bare passphrase is a syntax error. Wrap the common bare blob form in
+// double quotes — the SQLCipher raw-key convention — and pass quoted values
+// through unchanged.
+func normalizeEncryptionKey(key string) string {
+	if key != "" && key[0] == '"' {
+		return key
+	}
+	if m := blobKeyRe.FindStringSubmatch(key); m != nil {
+		return "\"" + key + "\""
+	}
+	return key
+}
+
+var blobKeyRe = regexp.MustCompile(`^x'[0-9a-fA-F]+'$`)
+
+// newSQLiteDriver builds a mattn/go-sqlite3 driver bound to one database's
+// SQLCipher key. The key is applied as the first statement of every new
+// connection; the connect hook applies Litestream's per-connection settings.
+func newSQLiteDriver(encryptionKey string, encryptionKeyBytes []byte) *sqlite3.SQLiteDriver {
+	return &sqlite3.SQLiteDriver{
+		EncryptionKey: normalizeEncryptionKey(encryptionKey),
+		// EncryptionKeyBytes takes precedence over EncryptionKey when set.
+		// Clone so the caller may zero its slice after opening; the driver
+		// keeps opening connections for the pool's lifetime.
+		EncryptionKeyBytes: bytes.Clone(encryptionKeyBytes),
+		ConnectHook: func(conn *sqlite3.SQLiteConn) error {
+			if err := conn.SetFileControlInt("main", sqlite3.SQLITE_FCNTL_PERSIST_WAL, 1); err != nil {
+				return fmt.Errorf("cannot set file control: %w", err)
+			}
+			// Litestream owns checkpointing; disable SQLite's automatic WAL
+			// checkpoints (upstream disables this via modernc's _pragma= DSN,
+			// which mattn/go-sqlite3 does not support).
+			if _, err := conn.Exec("PRAGMA wal_autocheckpoint = 0;", nil); err != nil {
+				return fmt.Errorf("cannot disable wal_autocheckpoint: %w", err)
+			}
+			return nil
+		},
+	}
+}
+
+// sqliteConnector adapts a *sqlite3.SQLiteDriver and a DSN to the
+// database/sql Connector interface. Each DB opens its pool with
+// sql.OpenDB instead of a global sql.Register name: registrations are
+// never removed, so a registry would retain key material for the
+// process lifetime and leak one entry per open/close cycle.
+type sqliteConnector struct {
+	drv *sqlite3.SQLiteDriver
+	dsn string
+}
+
+func (c *sqliteConnector) Connect(context.Context) (driver.Conn, error) {
+	return c.drv.Open(c.dsn)
+}
+
+func (c *sqliteConnector) Driver() driver.Driver { return c.drv }
+
+// newSQLitePool builds a connection pool around a driver built by
+// newSQLiteDriver, so every connection carries the SQLCipher key and
+// Litestream's per-connection settings.
+func newSQLitePool(drv *sqlite3.SQLiteDriver, dsn string) *sql.DB {
+	return sql.OpenDB(&sqliteConnector{drv: drv, dsn: dsn})
+}
 
 // Naming constants.
 const (

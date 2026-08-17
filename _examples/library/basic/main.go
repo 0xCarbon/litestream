@@ -16,7 +16,7 @@ import (
 	"syscall"
 	"time"
 
-	_ "modernc.org/sqlite"
+	_ "github.com/mattn/go-sqlite3"
 
 	"github.com/benbjohnson/litestream"
 	"github.com/benbjohnson/litestream/file"
@@ -99,8 +99,8 @@ func run(ctx context.Context) error {
 }
 
 func openAppDB(_ context.Context, path string) (*sql.DB, error) {
-	dsn := fmt.Sprintf("file:%s?_pragma=busy_timeout(5000)&_pragma=journal_mode(wal)", path)
-	return sql.Open("sqlite", dsn)
+	dsn := fmt.Sprintf("file:%s?_busy_timeout=5000&_journal_mode=WAL", path)
+	return sql.Open("sqlite3", dsn)
 }
 
 func initSchema(ctx context.Context, db *sql.DB) error {

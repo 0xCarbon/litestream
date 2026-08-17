@@ -3,7 +3,6 @@ package litestream
 import (
 	"context"
 	"crypto/rand"
-	"database/sql"
 	"errors"
 	"fmt"
 	"io"
@@ -15,6 +14,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/mattn/go-sqlite3"
 	"github.com/superfly/ltx"
 	"golang.org/x/sync/semaphore"
 
@@ -86,6 +86,39 @@ func NewReplicaWithClient(db *DB, client ReplicaClient) *Replica {
 	r := NewReplica(db)
 	r.Client = client
 	return r
+}
+
+// encryptionKey returns the owning database's encryption key. Restores can
+// run against a replica constructed without a DB instance, in which case the
+// database is assumed to be unencrypted.
+func (r *Replica) encryptionKey() string {
+	if r.db != nil {
+		return r.db.EncryptionKey
+	}
+	return ""
+}
+
+func (r *Replica) encryptionKeyBytes() []byte {
+	if r.db != nil {
+		return r.db.EncryptionKeyBytes
+	}
+	return nil
+}
+
+// encrypted reports whether the owning database is SQLCipher-encrypted.
+func (r *Replica) encrypted() bool {
+	return r.encryptionKey() != "" || r.encryptionKeyBytes() != nil
+}
+
+// sqliteDriver returns a driver carrying this replica's SQLCipher key: the
+// owning DB's own driver when it exists, else a fresh instance (DB-less
+// restores use the replica's key fields, empty when unencrypted). Drivers
+// are not globally registered, so the fallback is garbage-collected.
+func (r *Replica) sqliteDriver() *sqlite3.SQLiteDriver {
+	if r.db != nil && r.db.sqliteDriver != nil {
+		return r.db.sqliteDriver
+	}
+	return newSQLiteDriver(r.encryptionKey(), r.encryptionKeyBytes())
 }
 
 // Logger returns the DB sub-logger for this replica.
@@ -768,7 +801,7 @@ func (r *Replica) Restore(ctx context.Context, opt RestoreOptions) (err error) {
 	}
 
 	if opt.IntegrityCheck != IntegrityCheckNone {
-		if err := checkIntegrity(ctx, opt.OutputPath, opt.IntegrityCheck); err != nil {
+		if err := checkIntegrity(ctx, opt.OutputPath, r.sqliteDriver(), opt.IntegrityCheck); err != nil {
 			if ctx.Err() == nil {
 				_ = os.Remove(opt.OutputPath)
 				_ = os.Remove(opt.OutputPath + "-shm")
@@ -971,7 +1004,10 @@ func (r *Replica) applyLTXFile(ctx context.Context, f *os.File, info *ltx.FileIn
 			return fmt.Errorf("decode page: %w", err)
 		}
 
-		if phdr.Pgno == 1 && len(data) >= 28 {
+		// Update the first page to pretend like we are in journal mode.
+		// Skip the patch for encrypted databases: page 1 is ciphertext and
+		// rewriting any byte corrupts the HMAC (see VFS.SkipJournalPatch).
+		if phdr.Pgno == 1 && len(data) >= 28 && !r.encrypted() {
 			data[18], data[19] = 0x01, 0x01
 			_, _ = rand.Read(data[24:28])
 		}
@@ -1140,7 +1176,11 @@ func (r *Replica) RestoreV3(ctx context.Context, opt RestoreOptions) error {
 
 	// Create temp file for restore.
 	tmpPath := opt.OutputPath + ".tmp"
-	defer func() { _ = os.Remove(tmpPath) }()
+	defer func() {
+		_ = os.Remove(tmpPath)
+		_ = os.Remove(tmpPath + "-wal")
+		_ = os.Remove(tmpPath + "-shm")
+	}()
 
 	// Download and decompress snapshot.
 	if err := r.downloadSnapshotV3(ctx, client, snapshot.Generation, snapshot.Index, tmpPath); err != nil {
@@ -1161,7 +1201,7 @@ func (r *Replica) RestoreV3(ctx context.Context, opt RestoreOptions) error {
 	}
 
 	if opt.IntegrityCheck != IntegrityCheckNone {
-		if err := checkIntegrity(ctx, opt.OutputPath, opt.IntegrityCheck); err != nil {
+		if err := checkIntegrity(ctx, opt.OutputPath, r.sqliteDriver(), opt.IntegrityCheck); err != nil {
 			if ctx.Err() == nil {
 				_ = os.Remove(opt.OutputPath)
 				_ = os.Remove(opt.OutputPath + "-shm")
@@ -1266,7 +1306,7 @@ func (r *Replica) applyWALSegmentsV3(ctx context.Context, client ReplicaClientV3
 			return err
 		}
 		f = nil
-		if err = checkpointV3(dbPath); err != nil {
+		if err = checkpointV3(dbPath, r.sqliteDriver()); err != nil {
 			return err
 		}
 		r.Logger().Debug("applied WAL index", "generation", generation, "index", expectedIndex-1, "bytes", offset)
@@ -1316,28 +1356,31 @@ func (r *Replica) appendWALSegmentV3(ctx context.Context, client ReplicaClientV3
 	return io.Copy(f, rc)
 }
 
-// checkpointV3 checkpoints the WAL file into the database.
-func checkpointV3(dbPath string) error {
-	db, err := sql.Open("sqlite", dbPath)
-	if err != nil {
-		return err
-	}
+// checkpointV3 checkpoints the WAL file into the database. The driver must
+// carry the database's SQLCipher key (see (*Replica).sqliteDriver).
+func checkpointV3(dbPath string, drv *sqlite3.SQLiteDriver) error {
+	db := newSQLitePool(drv, dbPath)
 	defer func() { _ = db.Close() }()
 
-	_, err = db.Exec("PRAGMA wal_checkpoint(TRUNCATE)")
-	return err
+	if _, err := db.Exec("PRAGMA wal_checkpoint(TRUNCATE)"); err != nil {
+		return err
+	}
+
+	// The ConnectHook sets PERSIST_WAL, so closing the pool leaves a 0-byte
+	// -wal (and -shm) behind. Restore outputs are single-file databases;
+	// remove the sidecars. The next WAL rotation recreates them if needed.
+	_ = os.Remove(dbPath + "-wal")
+	_ = os.Remove(dbPath + "-shm")
+	return nil
 }
 
 // checkIntegrity runs a SQLite integrity check on the database at dbPath.
-func checkIntegrity(ctx context.Context, dbPath string, mode IntegrityCheckMode) error {
+func checkIntegrity(ctx context.Context, dbPath string, drv *sqlite3.SQLiteDriver, mode IntegrityCheckMode) error {
 	if mode == IntegrityCheckNone {
 		return nil
 	}
 
-	db, err := sql.Open("sqlite", dbPath)
-	if err != nil {
-		return fmt.Errorf("open database for integrity check: %w", err)
-	}
+	db := newSQLitePool(drv, dbPath)
 	defer func() { _ = db.Close() }()
 
 	var pragma string

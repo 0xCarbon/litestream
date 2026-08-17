@@ -10,35 +10,29 @@ builds:
   - id: litestream
     main: ./cmd/litestream
     binary: litestream
+    # The fork's mattn/go-sqlite3 driver builds SQLCipher (CGO, links
+    # libcrypto); pure-Go builds are no longer possible. Windows, macOS, and
+    # 32-bit ARM targets are dropped until cross-CGO toolchains with libcrypto
+    # are wired up; fork consumers are Linux.
     env:
-      - CGO_ENABLED=0
+      - CGO_ENABLED=1
     goos:
       - linux
-      - darwin
-      - windows
     goarch:
       - amd64
       - arm64
-      - arm
-    goarm:
-      - "6"
-      - "7"
+    overrides:
+      - goos: linux
+        goarch: arm64
+        env:
+          - CC=aarch64-linux-gnu-gcc
     ldflags:
       - -s -w -X main.Version={{.Version}}
-    ignore:
-      - goos: windows
-        goarch: arm
-      - goos: darwin
-        goarch: arm
 
 archives:
   - id: main
     formats:
       - tar.gz
-    format_overrides:
-      - goos: windows
-        formats:
-          - zip
     name_template: >-
       {{ .ProjectName }}-
       {{- .Version }}-
@@ -127,7 +121,7 @@ release:
 
     ⚠️ **Windows Notice**: Windows binaries are provided for convenience but Windows is NOT an officially supported platform. Use at your own risk. Community contributions for Windows improvements are welcome.
 
-    ✅ **Supported Platforms**: Linux (amd64, arm64, armv6, armv7), macOS (amd64, arm64)
+    ✅ **Supported Platforms**: Linux (amd64, arm64)
 
     ## Installation
 
@@ -160,8 +154,6 @@ release:
     |----------|------|
     | Linux x86_64 | `litestream-vfs-v{{.Version}}-linux-amd64.tar.gz` |
     | Linux ARM64 | `litestream-vfs-v{{.Version}}-linux-arm64.tar.gz` |
-    | macOS Intel | `litestream-vfs-v{{.Version}}-darwin-amd64.tar.gz` |
-    | macOS Apple Silicon | `litestream-vfs-v{{.Version}}-darwin-arm64.tar.gz` |
 
     Install via package managers:
     ```bash

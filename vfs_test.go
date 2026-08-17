@@ -403,6 +403,156 @@ func TestVFSFile_HeaderForcesDeleteJournal(t *testing.T) {
 	}
 }
 
+func TestVFSFile_SkipJournalPatchLeavesHeaderUntouched(t *testing.T) {
+	client := newMockReplicaClient()
+	client.addFixture(t, buildLTXFixture(t, 1, 'h'))
+
+	f := NewVFSFile(client, "skip-journal.db", slog.Default())
+	f.SkipJournalPatch = true
+	if err := f.Open(); err != nil {
+		t.Fatalf("open vfs file: %v", err)
+	}
+	defer f.Close()
+
+	buf := make([]byte, 32)
+	if _, err := f.ReadAt(buf, 0); err != nil {
+		t.Fatalf("read header: %v", err)
+	}
+	if buf[18] != 'h' || buf[19] != 'h' {
+		t.Fatalf("SkipJournalPatch=true must leave header bytes untouched, got %x %x", buf[18], buf[19])
+	}
+}
+
+func TestVFSFile_SkipJournalPatchCacheHitPath(t *testing.T) {
+	client := newMockReplicaClient()
+	client.addFixture(t, buildLTXFixture(t, 1, 'h'))
+
+	f := NewVFSFile(client, "skip-journal-cache.db", slog.Default())
+	f.SkipJournalPatch = true
+	if err := f.Open(); err != nil {
+		t.Fatalf("open vfs file: %v", err)
+	}
+	defer f.Close()
+
+	buf := make([]byte, 32)
+	if _, err := f.ReadAt(buf, 0); err != nil {
+		t.Fatalf("first read: %v", err)
+	}
+	// Second read of page 1 is served from the page cache; the patch must
+	// stay disabled on that path too.
+	if _, err := f.ReadAt(buf, 0); err != nil {
+		t.Fatalf("cached read: %v", err)
+	}
+	if buf[18] != 'h' || buf[19] != 'h' {
+		t.Fatalf("cached read must leave header bytes untouched, got %x %x", buf[18], buf[19])
+	}
+}
+
+func TestVFSFile_ShortReadAtOffsetZeroDoesNotPanic(t *testing.T) {
+	for _, skip := range []bool{false, true} {
+		client := newMockReplicaClient()
+		client.addFixture(t, buildLTXFixture(t, 1, 'h'))
+
+		f := NewVFSFile(client, fmt.Sprintf("short-read-%v.db", skip), slog.Default())
+		f.SkipJournalPatch = skip
+		if err := f.Open(); err != nil {
+			t.Fatalf("open vfs file: %v", err)
+		}
+		defer f.Close()
+
+		// A read shorter than the patch window from offset 0 must return the
+		// byte instead of panicking on the page-1 rewrite.
+		buf := make([]byte, 1)
+		n, err := f.ReadAt(buf, 0)
+		if err != nil {
+			t.Fatalf("skip=%v: short read: %v", skip, err)
+		}
+		if n != 1 || buf[0] != 'h' {
+			t.Fatalf("skip=%v: short read got n=%d byte=%q", skip, n, buf[0])
+		}
+
+		// Second read exercises the cache path.
+		n, err = f.ReadAt(buf, 0)
+		if err != nil {
+			t.Fatalf("skip=%v: cached short read: %v", skip, err)
+		}
+		if n != 1 || buf[0] != 'h' {
+			t.Fatalf("skip=%v: cached short read got n=%d byte=%q", skip, n, buf[0])
+		}
+	}
+}
+
+func TestVFS_SkipJournalPatchPropagatesToVFSFile(t *testing.T) {
+	client := newMockReplicaClient()
+	client.addFixture(t, buildLTXFixture(t, 1, 'h'))
+
+	vfs := NewVFS(client, slog.Default())
+	vfs.SkipJournalPatch = true
+
+	file, _, err := vfs.Open("propagate.db", sqlite3vfs.OpenMainDB|sqlite3vfs.OpenReadOnly)
+	if err != nil {
+		t.Fatalf("open via vfs: %v", err)
+	}
+	defer file.Close()
+
+	f, ok := file.(*VFSFile)
+	if !ok {
+		t.Fatalf("expected *VFSFile, got %T", file)
+	}
+	if !f.SkipJournalPatch {
+		t.Fatal("VFS.SkipJournalPatch must propagate to VFSFile on Open")
+	}
+
+	buf := make([]byte, 32)
+	if _, err := f.ReadAt(buf, 0); err != nil {
+		t.Fatalf("read header: %v", err)
+	}
+	if buf[18] != 'h' || buf[19] != 'h' {
+		t.Fatalf("propagated flag must gate the page-1 patch, got %x %x", buf[18], buf[19])
+	}
+}
+
+func TestVFS_HydratorSkipJournalPatch(t *testing.T) {
+	client := newMockReplicaClient()
+	client.addFixture(t, buildLTXFixture(t, 1, 'h'))
+
+	vfs := NewVFS(client, slog.Default())
+	vfs.SkipJournalPatch = true
+	vfs.HydrationEnabled = true
+
+	file, _, err := vfs.Open("hydrate-skip.db", sqlite3vfs.OpenMainDB|sqlite3vfs.OpenReadOnly)
+	if err != nil {
+		t.Fatalf("open via vfs: %v", err)
+	}
+	defer file.Close()
+
+	f := file.(*VFSFile)
+	if f.hydrator == nil {
+		t.Fatal("expected hydrator to be initialized")
+	}
+	if !f.hydrator.skipJournalPatch {
+		t.Fatal("SkipJournalPatch must propagate to the hydrator")
+	}
+
+	// Wait for background hydration to complete so reads are served by the
+	// hydrator's local file.
+	deadline := time.Now().Add(5 * time.Second)
+	for !f.hydrator.Complete() {
+		if time.Now().After(deadline) {
+			t.Fatal("hydration did not complete in time")
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+
+	buf := make([]byte, 32)
+	if _, err := f.ReadAt(buf, 0); err != nil {
+		t.Fatalf("read header: %v", err)
+	}
+	if buf[18] != 'h' || buf[19] != 'h' {
+		t.Fatalf("hydrator read must respect SkipJournalPatch, got %x %x", buf[18], buf[19])
+	}
+}
+
 func TestVFSFile_ReadAtLockPageBoundary(t *testing.T) {
 	pageSizes := []uint32{512, 1024, 2048, 4096, 8192, 16384, 32768, 65536}
 	for _, pageSize := range pageSizes {
@@ -844,6 +994,11 @@ type blockingReplicaClient struct {
 type countingReplicaClient struct {
 	calls atomic.Uint64
 }
+
+// SetLogger implements ReplicaClient for the test-only clients above.
+func (c *mockReplicaClient) SetLogger(_ *slog.Logger)     {}
+func (c *blockingReplicaClient) SetLogger(_ *slog.Logger) {}
+func (c *countingReplicaClient) SetLogger(_ *slog.Logger) {}
 
 func newCountingReplicaClient() *countingReplicaClient { return &countingReplicaClient{} }
 

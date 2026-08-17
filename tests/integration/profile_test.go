@@ -15,10 +15,10 @@ import (
 	"strconv"
 	"testing"
 
+	_ "github.com/mattn/go-sqlite3"
+
 	"github.com/benbjohnson/litestream"
 	"github.com/benbjohnson/litestream/file"
-
-	_ "modernc.org/sqlite"
 )
 
 // TestIdleCPUProfile starts N databases with file-based replicas and no writes,
@@ -81,7 +81,7 @@ func TestIdleCPUProfile(t *testing.T) {
 		}
 
 		// Create database with WAL mode and seed data.
-		sqldb, err := sql.Open("sqlite", dbPath)
+		sqldb, err := sql.Open("sqlite3", dbPath)
 		if err != nil {
 			t.Fatalf("open sql db %d: %v", i, err)
 		}

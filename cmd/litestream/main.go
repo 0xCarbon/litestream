@@ -19,10 +19,10 @@ import (
 	"time"
 
 	"github.com/dustin/go-humanize"
+	_ "github.com/mattn/go-sqlite3"
 	"github.com/superfly/ltx"
 	_ "golang.org/x/crypto/x509roots/fallback"
 	"gopkg.in/yaml.v2"
-	_ "modernc.org/sqlite"
 
 	"github.com/benbjohnson/litestream"
 	"github.com/benbjohnson/litestream/abs"
