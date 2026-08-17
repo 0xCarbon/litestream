@@ -27,10 +27,12 @@ func registerKeyedSQLite(tb testing.TB, key []byte) string {
 	return name
 }
 
+// mustExec is also called from worker goroutines, where Fatalf/FailNow are
+// invalid; use Errorf and skip the rest of the statement on failure.
 func mustExec(tb testing.TB, db *sql.DB, query string) {
 	tb.Helper()
 	if _, err := db.Exec(query); err != nil {
-		tb.Fatalf("exec %q: %v", query, err)
+		tb.Errorf("exec %q: %v", query, err)
 	}
 }
 

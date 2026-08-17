@@ -72,7 +72,6 @@ Before submitting changes:
 - [ ] For page iteration: test with >1GB databases
 - [ ] Show investigation evidence in PR (see [AI_PR_GUIDE.md](AI_PR_GUIDE.md))
 
-
 ## Fork Deltas (0xCarbon)
 
 This fork tracks upstream `benbjohnson/litestream` and adds:

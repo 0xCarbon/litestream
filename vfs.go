@@ -67,9 +67,10 @@ type VFS struct {
 	WriteEnabled bool
 
 	// SkipJournalPatch disables the page-1 emulation patch. By default the VFS
-	// rewrites bytes 18-19 of page 1 on reads so SQLite sees a journal-mode
-	// database header. SQLCipher databases must skip this patch: the page is
-	// ciphertext and any rewrite corrupts the HMAC.
+	// rewrites bytes 18-19 of page 1 on reads (and randomizes bytes 24-27,
+	// the schema change counter) so SQLite sees a journal-mode database
+	// header with an invalidated schema cache. SQLCipher databases must skip
+	// this patch: the page is ciphertext and any rewrite corrupts the HMAC.
 	SkipJournalPatch bool
 
 	// WriteSyncInterval is how often to sync dirty pages to remote storage.
