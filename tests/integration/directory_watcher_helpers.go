@@ -13,7 +13,7 @@ import (
 	"testing"
 	"time"
 
-	_ "github.com/mattn/go-sqlite3"
+	_ "github.com/0xCarbon/go-sqlite3"
 )
 
 // DirWatchTestDB extends TestDB with directory-specific functionality

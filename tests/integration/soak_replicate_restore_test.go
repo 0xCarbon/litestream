@@ -16,7 +16,7 @@ import (
 	"testing"
 	"time"
 
-	_ "github.com/mattn/go-sqlite3"
+	_ "github.com/0xCarbon/go-sqlite3"
 )
 
 // TestSoakReplicateRestore reproduces issue #1164: intermittent database corruption

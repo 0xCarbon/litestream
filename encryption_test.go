@@ -10,7 +10,7 @@ import (
 	"sync/atomic"
 	"testing"
 
-	"github.com/mattn/go-sqlite3"
+	"github.com/0xCarbon/go-sqlite3"
 
 	"github.com/benbjohnson/litestream"
 	"github.com/benbjohnson/litestream/file"

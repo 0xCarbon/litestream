@@ -19,7 +19,7 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/mattn/go-sqlite3"
+	"github.com/0xCarbon/go-sqlite3"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 	"github.com/superfly/ltx"

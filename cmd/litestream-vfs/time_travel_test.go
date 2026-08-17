@@ -12,7 +12,7 @@ import (
 	"testing"
 	"time"
 
-	_ "github.com/mattn/go-sqlite3"
+	_ "github.com/0xCarbon/go-sqlite3"
 	"github.com/psanford/sqlite3vfs"
 	"github.com/stretchr/testify/require"
 

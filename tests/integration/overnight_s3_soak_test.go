@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	_ "github.com/mattn/go-sqlite3"
+	_ "github.com/0xCarbon/go-sqlite3"
 )
 
 // TestOvernightS3Soak runs an 8-hour overnight soak test against real AWS S3.

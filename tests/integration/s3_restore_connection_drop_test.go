@@ -16,7 +16,7 @@ import (
 	"testing"
 	"time"
 
-	_ "github.com/mattn/go-sqlite3"
+	_ "github.com/0xCarbon/go-sqlite3"
 )
 
 // TestRestore_S3ConnectionDrop verifies restore can recover from dropped S3-compatible connections.

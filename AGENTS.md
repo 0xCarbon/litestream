@@ -86,12 +86,12 @@ This fork tracks upstream `benbjohnson/litestream` and adds:
 - **VFS**: `VFS.SkipJournalPatch` / `VFSFile.SkipJournalPatch` disable the
   page-1 journal-mode emulation patch, required for SQLCipher databases
   (plaintext bytes 18-19/24-28 must not be rewritten on ciphertext pages).
-- **Mandatory consumer replace**: Go ignores this module's `replace`
-  directives when litestream is imported as a dependency. Every consuming
-  module MUST carry its own replace or the build fails with
-  `EncryptionKey`/`EncryptionKeyBytes` undefined on the upstream driver:
-
-      replace github.com/mattn/go-sqlite3 => github.com/0xCarbon/go-sqlite3 v1.14.38-0.20260515201505-c8f057756220
+- **Driver dependency**: litestream requires the 0xCarbon SQLCipher fork
+  directly (`github.com/0xCarbon/go-sqlite3`) — no `replace` directive is
+  needed or used. Consumers must use the same module path for their own
+  direct sqlite use: importing both `github.com/mattn/go-sqlite3` and
+  `github.com/0xCarbon/go-sqlite3` in one binary registers the "sqlite3"
+  driver twice and panics at init.
 
 - **Pin policy**: consumer modules pin this fork via the `pin/<sha>` branches
   (e.g. `pin/7a606e384ee9`); never force-push or delete them.

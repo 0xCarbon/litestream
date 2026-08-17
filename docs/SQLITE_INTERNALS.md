@@ -437,7 +437,7 @@ Litestream uses both database/sql and direct SQLite APIs:
 // Using database/sql for queries
 db, err := sql.Open("sqlite3", "database.db")
 
-// Using mattn/go-sqlite3 for low-level access (CGO)
+// Using 0xCarbon/go-sqlite3 for low-level access (CGO)
 conn, err := sqlite3.Open("database.db")
 
 // Direct page access (requires special builds)
