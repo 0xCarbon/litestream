@@ -76,9 +76,9 @@ Before submitting changes:
 
 This fork tracks upstream `benbjohnson/litestream` and adds:
 
-- **Driver**: per-database `github.com/0xCarbon/go-sqlite3` driver instances (registered as
-  `litestream-sqlite3-<seq>`), each carrying its database's SQLCipher key;
-  see `registerSQLiteDriver` in `litestream.go`.
+- **Driver**: per-database `github.com/0xCarbon/go-sqlite3` driver instances
+  (private `sql.OpenDB` connectors, see `newSQLiteDriver`/`newSQLitePool` in
+  `litestream.go`), each carrying its database's SQLCipher key.
 - **Encryption**: `DB.EncryptionKey` (string: bare `x'…'` raw-key blob is
   auto-quoted; quoted literals `'passphrase'`/`"x'…'"` pass through) and
   `DB.EncryptionKeyBytes` (raw bytes; takes precedence; must be exactly 32,

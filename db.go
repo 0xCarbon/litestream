@@ -198,8 +198,11 @@ type DB struct {
 	EncryptionKey string
 
 	// EncryptionKeyBytes is the raw SQLCipher key for this database. When
-	// non-empty it takes precedence over EncryptionKey. Applied to every
-	// connection of this DB's registered driver.
+	// non-empty it takes precedence over EncryptionKey. Must be exactly 32,
+	// 48, or 80 bytes (SQLCipher raw-key forms: key / key+salt /
+	// key+HMAC+salt); other lengths are rejected at the first connection by
+	// the 0xCarbon fork. Applied to every connection of this DB's driver;
+	// set before Open.
 	EncryptionKeyBytes []byte
 
 	// sqliteDriver is this DB's own driver instance, carrying its SQLCipher
