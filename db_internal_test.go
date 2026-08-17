@@ -4689,3 +4689,39 @@ func TestDB_InitSetsSyncFull(t *testing.T) {
 		t.Fatalf("litestream pool connections must run synchronous=FULL (2), got %d", sync)
 	}
 }
+
+// TestDB_EncryptionKeyBytesLengthRejected asserts the driver's raw-key
+// length contract surfaces through litestream's own pool: SQLCipher honors
+// raw keys only at 32/48/80 bytes; the 0xCarbon fork rejects other lengths
+// at connection open instead of silently KDF-falling-back.
+func TestDB_EncryptionKeyBytesLengthRejected(t *testing.T) {
+	dbPath := filepath.Join(t.TempDir(), "db")
+	setup, err := sql.Open("sqlite3", dbPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := setup.Exec(`CREATE TABLE t (v TEXT);`); err != nil {
+		t.Fatal(err)
+	}
+	setup.Close()
+
+	db := NewDB(dbPath)
+	db.EncryptionKeyBytes = make([]byte, 16) // invalid: not 32/48/80
+	client := &testReplicaClient{dir: t.TempDir()}
+	r := NewReplicaWithClient(db, client)
+	r.MonitorEnabled = false
+	db.Replica = r
+	if err := db.Open(); err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = db.Close(context.Background()) }()
+
+	// db.Open does not connect; the first pooled connection (init) fails fast.
+	err = db.init(context.Background())
+	if err == nil {
+		t.Fatal("expected invalid raw key length to be rejected")
+	}
+	if !strings.Contains(err.Error(), "invalid raw key length") || !strings.Contains(err.Error(), "must be 32, 48, or 80 bytes") {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}

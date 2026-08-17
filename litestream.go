@@ -38,7 +38,7 @@ func normalizeEncryptionKey(key string) string {
 
 var blobKeyRe = regexp.MustCompile(`^x'[0-9a-fA-F]+'$`)
 
-// newSQLiteDriver builds a mattn/go-sqlite3 driver bound to one database's
+// newSQLiteDriver builds a 0xCarbon/go-sqlite3 (mattn-lineage) driver bound to one database's
 // SQLCipher key. The key is applied as the first statement of every new
 // connection; the connect hook applies Litestream's per-connection settings.
 func newSQLiteDriver(encryptionKey string, encryptionKeyBytes []byte) *sqlite3.SQLiteDriver {
@@ -54,7 +54,7 @@ func newSQLiteDriver(encryptionKey string, encryptionKeyBytes []byte) *sqlite3.S
 			}
 			// Litestream owns checkpointing; disable SQLite's automatic WAL
 			// checkpoints (upstream disables this via modernc's _pragma= DSN,
-			// which mattn/go-sqlite3 does not support).
+			// which the go-sqlite3 fork does not support).
 			if _, err := conn.Exec("PRAGMA wal_autocheckpoint = 0;", nil); err != nil {
 				return fmt.Errorf("cannot disable wal_autocheckpoint: %w", err)
 			}

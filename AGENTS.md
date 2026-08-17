@@ -1,6 +1,6 @@
 # AGENTS.md - Litestream AI Agent Guide
 
-Litestream is a disaster recovery tool for SQLite that runs as a background process, monitors the WAL, converts changes to immutable LTX files, and replicates them to cloud storage. This fork uses `mattn/go-sqlite3` (via the 0xCarbon fork with bundled SQLCipher) — CGO is required and libcrypto is linked.
+Litestream is a disaster recovery tool for SQLite that runs as a background process, monitors the WAL, converts changes to immutable LTX files, and replicates them to cloud storage. This fork uses `github.com/0xCarbon/go-sqlite3` (the mattn-lineage fork with bundled SQLCipher) — CGO is required and libcrypto is linked.
 
 ## Before You Start
 
@@ -76,13 +76,15 @@ Before submitting changes:
 
 This fork tracks upstream `benbjohnson/litestream` and adds:
 
-- **Driver**: per-database `mattn/go-sqlite3` driver instances (registered as
+- **Driver**: per-database `github.com/0xCarbon/go-sqlite3` driver instances (registered as
   `litestream-sqlite3-<seq>`), each carrying its database's SQLCipher key;
   see `registerSQLiteDriver` in `litestream.go`.
 - **Encryption**: `DB.EncryptionKey` (string: bare `x'…'` raw-key blob is
   auto-quoted; quoted literals `'passphrase'`/`"x'…'"` pass through) and
-  `DB.EncryptionKeyBytes` (raw bytes; takes precedence). Keys are applied as
-  the first statement of every pooled connection; set before Open.
+  `DB.EncryptionKeyBytes` (raw bytes; takes precedence; must be exactly 32,
+  48, or 80 bytes — other lengths are rejected at the first connection).
+  Keys are applied as the first statement of every pooled connection; set
+  before Open.
 - **VFS**: `VFS.SkipJournalPatch` / `VFSFile.SkipJournalPatch` disable the
   page-1 journal-mode emulation patch, required for SQLCipher databases
   (plaintext bytes 18-19/24-28 must not be rewritten on ciphertext pages).
@@ -102,7 +104,7 @@ This fork tracks upstream `benbjohnson/litestream` and adds:
   stock runners do not provide; fork consumers are Linux.
 - **Durability**: litestream's own connections run `synchronous=FULL` (DSN
   `_sync=FULL`), matching upstream's modernc default. Consumer connections
-  through the mattn fork default to `synchronous=NORMAL` — pass `_sync=FULL`
+  through the 0xCarbon fork (mattn-lineage) default to `synchronous=NORMAL` — pass `_sync=FULL`
   in your DSN if you need the stricter behavior.
 - **CLI**: the `litestream` binary is encryption-blind — there is no key
   configuration; SQLCipher is a library-only feature via `DB.EncryptionKey`

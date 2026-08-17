@@ -1037,7 +1037,7 @@ func (db *DB) init(ctx context.Context) (err error) {
 
 	dsn := db.path
 	// _sync=FULL restores the durability litestream had with modernc: the
-	// mattn driver defaults every connection to synchronous=NORMAL, which
+	// go-sqlite3 fork defaults every connection to synchronous=NORMAL, which
 	// can lose the newest commits on power loss in WAL mode.
 	dsn += fmt.Sprintf("?_busy_timeout=%d&_sync=FULL", db.BusyTimeout.Milliseconds())
 
