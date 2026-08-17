@@ -88,6 +88,16 @@ func NewReplicaWithClient(db *DB, client ReplicaClient) *Replica {
 	return r
 }
 
+// encryptionKey returns the owning database's encryption key. Restores can
+// run against a replica constructed without a DB instance, in which case the
+// database is assumed to be unencrypted.
+func (r *Replica) encryptionKey() string {
+	if r.db != nil {
+		return r.db.EncryptionKey
+	}
+	return ""
+}
+
 // Logger returns the DB sub-logger for this replica.
 func (r *Replica) Logger() *slog.Logger {
 	logger := slog.Default()
@@ -768,7 +778,7 @@ func (r *Replica) Restore(ctx context.Context, opt RestoreOptions) (err error) {
 	}
 
 	if opt.IntegrityCheck != IntegrityCheckNone {
-		if err := checkIntegrity(ctx, opt.OutputPath, r.db.EncryptionKey, opt.IntegrityCheck); err != nil {
+		if err := checkIntegrity(ctx, opt.OutputPath, r.encryptionKey(), opt.IntegrityCheck); err != nil {
 			if ctx.Err() == nil {
 				_ = os.Remove(opt.OutputPath)
 				_ = os.Remove(opt.OutputPath + "-shm")
@@ -1161,7 +1171,7 @@ func (r *Replica) RestoreV3(ctx context.Context, opt RestoreOptions) error {
 	}
 
 	if opt.IntegrityCheck != IntegrityCheckNone {
-		if err := checkIntegrity(ctx, opt.OutputPath, r.db.EncryptionKey, opt.IntegrityCheck); err != nil {
+		if err := checkIntegrity(ctx, opt.OutputPath, r.encryptionKey(), opt.IntegrityCheck); err != nil {
 			if ctx.Err() == nil {
 				_ = os.Remove(opt.OutputPath)
 				_ = os.Remove(opt.OutputPath + "-shm")
@@ -1266,7 +1276,7 @@ func (r *Replica) applyWALSegmentsV3(ctx context.Context, client ReplicaClientV3
 			return err
 		}
 		f = nil
-		if err = checkpointV3(dbPath, r.db.EncryptionKey); err != nil {
+		if err = checkpointV3(dbPath, r.encryptionKey()); err != nil {
 			return err
 		}
 		r.Logger().Debug("applied WAL index", "generation", generation, "index", expectedIndex-1, "bytes", offset)

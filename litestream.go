@@ -23,6 +23,12 @@ var litestreamDriver = &sqlite3.SQLiteDriver{
 		if err := conn.SetFileControlInt("main", sqlite3.SQLITE_FCNTL_PERSIST_WAL, 1); err != nil {
 			return fmt.Errorf("cannot set file control: %w", err)
 		}
+		// Litestream owns checkpointing; disable SQLite's automatic WAL
+		// checkpoints (upstream disables this via modernc's _pragma= DSN,
+		// which mattn/go-sqlite3 does not support).
+		if _, err := conn.Exec("PRAGMA wal_autocheckpoint = 0;", nil); err != nil {
+			return fmt.Errorf("cannot disable wal_autocheckpoint: %w", err)
+		}
 		return nil
 	},
 }
