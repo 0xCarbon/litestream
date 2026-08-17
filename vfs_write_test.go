@@ -28,6 +28,8 @@ type writeTestReplicaClient struct {
 	ltxData  map[string][]byte       // "level/minTXID-maxTXID" -> data
 }
 
+func (c *writeTestReplicaClient) SetLogger(_ *slog.Logger) {}
+
 func newWriteTestReplicaClient() *writeTestReplicaClient {
 	return &writeTestReplicaClient{
 		ltxFiles: make(map[int][]*ltx.FileInfo),

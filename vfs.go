@@ -66,6 +66,12 @@ type VFS struct {
 	// WriteEnabled activates write support for the VFS.
 	WriteEnabled bool
 
+	// SkipJournalPatch disables the page-1 emulation patch. By default the VFS
+	// rewrites bytes 18-19 of page 1 on reads so SQLite sees a journal-mode
+	// database header. SQLCipher databases must skip this patch: the page is
+	// ciphertext and any rewrite corrupts the HMAC.
+	SkipJournalPatch bool
+
 	// WriteSyncInterval is how often to sync dirty pages to remote storage.
 	// If zero, defaults to DefaultSyncInterval (1 second).
 	WriteSyncInterval time.Duration
@@ -141,6 +147,7 @@ func (vfs *VFS) openMainDB(name string, flags sqlite3vfs.OpenFlag) (sqlite3vfs.F
 	f := NewVFSFile(vfs.client, name, vfs.logger.With("name", name))
 	f.PollInterval = vfs.PollInterval
 	f.CacheSize = vfs.CacheSize
+	f.SkipJournalPatch = vfs.SkipJournalPatch
 	f.vfs = vfs // Store reference to parent VFS for config access
 
 	// Initialize write support if enabled
@@ -556,6 +563,10 @@ type VFSFile struct {
 	PollInterval time.Duration
 	CacheSize    int
 
+	// SkipJournalPatch disables the page-1 journal-mode emulation patch on
+	// reads. Copied from the parent VFS on Open; see VFS.SkipJournalPatch.
+	SkipJournalPatch bool
+
 	// Compaction support (only used when VFS.CompactionEnabled is true)
 	vfs              *VFS       // Reference back to parent VFS for config
 	compactor        *Compactor // Shared compaction logic
@@ -577,6 +588,8 @@ type Hydrator struct {
 	pageSize   uint32         // Page size of the database
 	client     ReplicaClient
 	logger     *slog.Logger
+
+	skipJournalPatch bool // Skip page-1 journal-mode patch (encrypted databases)
 }
 
 // NewHydrator creates a new Hydrator instance.
@@ -800,7 +813,7 @@ func (h *Hydrator) ReadAt(p []byte, off int64) (int, error) {
 	}
 
 	// Update the first page to pretend like we are in journal mode
-	if off == 0 && len(p) >= 28 {
+	if off == 0 && len(p) >= 28 && !h.skipJournalPatch {
 		p[18], p[19] = 0x01, 0x01
 		_, _ = rand.Read(p[24:28])
 	}
@@ -1287,6 +1300,7 @@ func (f *VFSFile) buildIndex(ctx context.Context, infos []*ltx.FileInfo) error {
 // initHydration starts the background hydration process.
 func (f *VFSFile) initHydration(infos []*ltx.FileInfo) error {
 	f.hydrator = NewHydrator(f.hydrationPath, f.hydrationPersistent, f.pageSize, f.client, f.logger)
+	f.hydrator.skipJournalPatch = f.SkipJournalPatch
 	if err := f.hydrator.Init(); err != nil {
 		return err
 	}
@@ -1444,7 +1458,7 @@ func (f *VFSFile) ReadAt(p []byte, off int64) (n int, err error) {
 			f.logger.Debug("dirty page hit", "page", pgno, "n", n)
 
 			// Update the first page to pretend like we are in journal mode.
-			if off == 0 && len(p) >= 28 {
+			if off == 0 && len(p) >= 28 && !f.SkipJournalPatch {
 				p[18], p[19] = 0x01, 0x01
 				_, _ = rand.Read(p[24:28])
 			}
@@ -1465,7 +1479,8 @@ func (f *VFSFile) ReadAt(p []byte, off int64) (n int, err error) {
 		f.logger.Debug("cache hit", "page", pgno, "n", n)
 
 		// Update the first page to pretend like we are in journal mode.
-		if off == 0 {
+		// Guard len(p) >= 28: a short read from offset 0 must not panic.
+		if off == 0 && len(p) >= 28 && !f.SkipJournalPatch {
 			p[18], p[19] = 0x01, 0x01
 			_, _ = rand.Read(p[24:28])
 		}
@@ -1531,7 +1546,8 @@ func (f *VFSFile) ReadAt(p []byte, off int64) (n int, err error) {
 	f.logger.Debug("data read from storage", "page", pgno, "n", n, "data", len(data))
 
 	// Update the first page to pretend like we are in journal mode.
-	if off == 0 {
+	// Guard len(p) >= 28: a short read from offset 0 must not panic.
+	if off == 0 && len(p) >= 28 && !f.SkipJournalPatch {
 		p[18], p[19] = 0x01, 0x01
 		_, _ = rand.Read(p[24:28])
 	}
