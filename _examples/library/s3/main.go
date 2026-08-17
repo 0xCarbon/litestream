@@ -169,7 +169,7 @@ func restoreIfNotExists(ctx context.Context, client *s3.ReplicaClient, dbPath st
 }
 
 func openAppDB(_ context.Context, path string) (*sql.DB, error) {
-	dsn := fmt.Sprintf("file:%s?_pragma=busy_timeout(5000)&_pragma=journal_mode(wal)", path)
+	dsn := fmt.Sprintf("file:%s?_busy_timeout=5000&_journal_mode=WAL", path)
 	return sql.Open("sqlite3", dsn)
 }
 

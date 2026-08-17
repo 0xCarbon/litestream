@@ -183,7 +183,7 @@ func createTestDatabasesBatch(t *testing.T, dir string, startIdx, count int) []*
 		idx := startIdx + i
 		dbPath := filepath.Join(dir, fmt.Sprintf("test_%04d.db", idx))
 
-		db, err := sql.Open("sqlite", dbPath)
+		db, err := sql.Open("sqlite3", dbPath)
 		if err != nil {
 			closeTestDatabases(dbs)
 			t.Fatalf("Failed to open database %d: %v", idx, err)
