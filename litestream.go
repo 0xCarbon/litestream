@@ -9,6 +9,7 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"regexp"
 	"strconv"
 	"strings"
 	"sync/atomic"
@@ -24,12 +25,30 @@ import (
 // sqlite3vfs VFS-name behavior in consumers.
 var sqliteDriverSeq atomic.Uint64
 
+// normalizeEncryptionKey adapts a key string for the driver's raw
+// `PRAGMA key = %s;` interpolation. SQLite's PRAGMA grammar accepts only a
+// string literal on the right-hand side, so a bare blob literal (x'…') or a
+// bare passphrase is a syntax error. Wrap the common bare blob form in
+// double quotes — the SQLCipher raw-key convention — and pass quoted values
+// through unchanged.
+func normalizeEncryptionKey(key string) string {
+	if key != "" && key[0] == '"' {
+		return key
+	}
+	if m := blobKeyRe.FindStringSubmatch(key); m != nil {
+		return "\"" + key + "\""
+	}
+	return key
+}
+
+var blobKeyRe = regexp.MustCompile(`^x'[0-9a-fA-F]+'$`)
+
 // newSQLiteDriver builds a mattn/go-sqlite3 driver bound to one database's
 // SQLCipher key. The key is applied as the first statement of every new
 // connection; the connect hook applies Litestream's per-connection settings.
 func newSQLiteDriver(encryptionKey string, encryptionKeyBytes []byte) *sqlite3.SQLiteDriver {
 	return &sqlite3.SQLiteDriver{
-		EncryptionKey: encryptionKey,
+		EncryptionKey: normalizeEncryptionKey(encryptionKey),
 		// EncryptionKeyBytes takes precedence over EncryptionKey when set.
 		EncryptionKeyBytes: encryptionKeyBytes,
 		ConnectHook: func(conn *sqlite3.SQLiteConn) error {

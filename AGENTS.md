@@ -80,9 +80,10 @@ This fork tracks upstream `benbjohnson/litestream` and adds:
 - **Driver**: per-database `mattn/go-sqlite3` driver instances (registered as
   `litestream-sqlite3-<seq>`), each carrying its database's SQLCipher key;
   see `registerSQLiteDriver` in `litestream.go`.
-- **Encryption**: `DB.EncryptionKey` (SQL-literal string, e.g. `x'…'`) and
+- **Encryption**: `DB.EncryptionKey` (string: bare `x'…'` raw-key blob is
+  auto-quoted; quoted literals `'passphrase'`/`"x'…'"` pass through) and
   `DB.EncryptionKeyBytes` (raw bytes; takes precedence). Keys are applied as
-  the first statement of every pooled connection.
+  the first statement of every pooled connection; set before Open.
 - **VFS**: `VFS.SkipJournalPatch` / `VFSFile.SkipJournalPatch` disable the
   page-1 journal-mode emulation patch, required for SQLCipher databases
   (plaintext bytes 18-19/24-28 must not be rewritten on ciphertext pages).

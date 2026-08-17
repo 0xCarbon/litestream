@@ -190,9 +190,11 @@ type DB struct {
 	// Where to send log messages, defaults to global slog with database epath.
 	Logger *slog.Logger
 
-	// EncryptionKey is the SQLCipher PRAGMA key for this database, as a SQL
-	// literal (for example "x'0123…'"). Applied to every connection of this
-	// DB's registered driver.
+	// EncryptionKey is the SQLCipher key for this database. Accepted forms:
+	// a bare raw-key blob literal x'0123…' (auto-quoted to the SQLCipher
+	// convention), an already-quoted literal ("x'0123…'" or 'passphrase'),
+	// or a single-token passphrase. Prefer EncryptionKeyBytes for raw keys.
+	// Applied to every connection of this DB's driver; set before Open.
 	EncryptionKey string
 
 	// EncryptionKeyBytes is the raw SQLCipher key for this database. When
