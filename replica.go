@@ -110,6 +110,11 @@ func (r *Replica) encryptionKeyBytes() []byte {
 	return nil
 }
 
+// encrypted reports whether the owning database is SQLCipher-encrypted.
+func (r *Replica) encrypted() bool {
+	return r.encryptionKey() != "" || r.encryptionKeyBytes() != nil
+}
+
 // sqliteDriverName returns the database/sql driver name carrying this
 // replica's SQLCipher key. Falls back to a per-replica registered driver
 // when the replica has no owning DB (DB-less restores are treated as
@@ -1011,7 +1016,10 @@ func (r *Replica) applyLTXFile(ctx context.Context, f *os.File, info *ltx.FileIn
 			return fmt.Errorf("decode page: %w", err)
 		}
 
-		if phdr.Pgno == 1 && len(data) >= 28 {
+		// Update the first page to pretend like we are in journal mode.
+		// Skip the patch for encrypted databases: page 1 is ciphertext and
+		// rewriting any byte corrupts the HMAC (see VFS.SkipJournalPatch).
+		if phdr.Pgno == 1 && len(data) >= 28 && !r.encrypted() {
 			data[18], data[19] = 0x01, 0x01
 			_, _ = rand.Read(data[24:28])
 		}
