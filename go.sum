@@ -11,8 +11,8 @@ cloud.google.com/go/pubsub v1.34.0 h1:ZtPbfwfi5rLaPeSvDC29fFoE20/tQvGrUS6kVJZJvk
 cloud.google.com/go/pubsub v1.34.0/go.mod h1:alj4l4rBg+N3YTFDDC+/YyFTs6JAjam2QfYsddcAW4c=
 cloud.google.com/go/storage v1.36.0 h1:P0mOkAcaJxhCTvAkMhxMfrTKiNcub4YmmPBtlhAyTr8=
 cloud.google.com/go/storage v1.36.0/go.mod h1:M6M/3V/D3KpzMTJyPOR/HU6n2Si5QdaXYEsng2xgOs8=
-github.com/0xCarbon/go-sqlite3 v1.14.38-0.20260817152354-d1c4d3294fa8 h1:dSe2JsAQq07u4+dt94EyyDm5tVEmmxD0YeA9rA7mlxo=
-github.com/0xCarbon/go-sqlite3 v1.14.38-0.20260817152354-d1c4d3294fa8/go.mod h1:ANMAfeds95Wt2uetNKPPPenXJ6XqHK53ltmgttIvtnQ=
+github.com/0xCarbon/go-sqlite3 v1.15.0 h1:lI+p2/kQGLAZuis5oBf+OKJuRRR4aCaxtlGT2gEcvss=
+github.com/0xCarbon/go-sqlite3 v1.15.0/go.mod h1:ANMAfeds95Wt2uetNKPPPenXJ6XqHK53ltmgttIvtnQ=
 github.com/Azure/azure-sdk-for-go/sdk/azcore v1.18.2 h1:Hr5FTipp7SL07o2FvoVOX9HRiRH3CR3Mj8pxqCcdD5A=
 github.com/Azure/azure-sdk-for-go/sdk/azcore v1.18.2/go.mod h1:QyVsSSN64v5TGltphKLQ2sQxe4OBQg0J1eKRcVBnfgE=
 github.com/Azure/azure-sdk-for-go/sdk/azidentity v1.11.0 h1:MhRfI58HblXzCtWEZCO0feHs8LweePB3s90r7WaR1KU=
