@@ -23,11 +23,11 @@ RUN --mount=type=cache,target=/root/.cache/go-build \
 	-buildmode=c-archive \
 	-o dist/litestream-vfs.a ./cmd/litestream-vfs && \
 	mv dist/litestream-vfs.h src/litestream-vfs.h && \
-	gcc -DSQLITE3VFS_LOADABLE_EXT -g -fPIC -shared \
+	gcc -DSQLITE3VFS_LOADABLE_EXT -s -fPIC -shared \
 	-o dist/litestream-vfs.so \
 	src/litestream-vfs.c \
 	dist/litestream-vfs.a \
-	-lpthread -ldl -lm
+	-lpthread -ldl -lm -lcrypto
 
 # --- Hardened image (Scratch) ---
 FROM alpine:3.21 AS certs

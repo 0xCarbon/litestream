@@ -62,6 +62,13 @@ jobs:
       - name: Verify shared library created
         run: file dist/litestream-vfs-linux-amd64.so
 
+      # The extension embeds SQLCipher; without -lcrypto on the link line the
+      # .so builds but is unloadable (undefined EVP_* symbols). Catch it here.
+      - name: Load extension into sqlite3
+        run: |
+          sudo apt-get update && sudo apt-get install -y sqlite3 libsqlite3-0
+          LITESTREAM_REPLICA_URL=file:///tmp/replica             sqlite3 :memory: ".load dist/litestream-vfs-linux-amd64.so sqlite3_litestreamvfs_init"
+
   docker-smoke-test:
     name: Docker Smoke Test
     runs-on: ubuntu-latest
