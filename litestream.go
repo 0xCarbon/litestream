@@ -11,30 +11,49 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"sync/atomic"
 
 	"github.com/mattn/go-sqlite3"
 	"github.com/superfly/ltx"
 )
 
-// litestreamDriver is the shared driver instance. Its EncryptionKey field
-// is set before opening databases to inject PRAGMA key as the first SQL.
-var litestreamDriver = &sqlite3.SQLiteDriver{
-	ConnectHook: func(conn *sqlite3.SQLiteConn) error {
-		if err := conn.SetFileControlInt("main", sqlite3.SQLITE_FCNTL_PERSIST_WAL, 1); err != nil {
-			return fmt.Errorf("cannot set file control: %w", err)
-		}
-		// Litestream owns checkpointing; disable SQLite's automatic WAL
-		// checkpoints (upstream disables this via modernc's _pragma= DSN,
-		// which mattn/go-sqlite3 does not support).
-		if _, err := conn.Exec("PRAGMA wal_autocheckpoint = 0;", nil); err != nil {
-			return fmt.Errorf("cannot disable wal_autocheckpoint: %w", err)
-		}
-		return nil
-	},
+// sqliteDriverSeq generates unique database/sql driver names. Each DB
+// registers its own sqlite3.SQLiteDriver so concurrent DBs can hold different
+// SQLCipher keys without racing a shared global. database/sql has no
+// Unregister; names accumulate per DB instance, mirroring the accepted
+// sqlite3vfs VFS-name behavior in consumers.
+var sqliteDriverSeq atomic.Uint64
+
+// newSQLiteDriver builds a mattn/go-sqlite3 driver bound to one database's
+// SQLCipher key. The key is applied as the first statement of every new
+// connection; the connect hook applies Litestream's per-connection settings.
+func newSQLiteDriver(encryptionKey string, encryptionKeyBytes []byte) *sqlite3.SQLiteDriver {
+	return &sqlite3.SQLiteDriver{
+		EncryptionKey: encryptionKey,
+		// EncryptionKeyBytes takes precedence over EncryptionKey when set.
+		EncryptionKeyBytes: encryptionKeyBytes,
+		ConnectHook: func(conn *sqlite3.SQLiteConn) error {
+			if err := conn.SetFileControlInt("main", sqlite3.SQLITE_FCNTL_PERSIST_WAL, 1); err != nil {
+				return fmt.Errorf("cannot set file control: %w", err)
+			}
+			// Litestream owns checkpointing; disable SQLite's automatic WAL
+			// checkpoints (upstream disables this via modernc's _pragma= DSN,
+			// which mattn/go-sqlite3 does not support).
+			if _, err := conn.Exec("PRAGMA wal_autocheckpoint = 0;", nil); err != nil {
+				return fmt.Errorf("cannot disable wal_autocheckpoint: %w", err)
+			}
+			return nil
+		},
+	}
 }
 
-func init() {
-	sql.Register("litestream-sqlite3", litestreamDriver)
+// registerSQLiteDriver registers a per-database driver under a unique name
+// and returns the name for sql.Open. Call before opening connections so the
+// key is set before first use on every pooled connection.
+func registerSQLiteDriver(encryptionKey string, encryptionKeyBytes []byte) (string, error) {
+	name := fmt.Sprintf("litestream-sqlite3-%d", sqliteDriverSeq.Add(1))
+	sql.Register(name, newSQLiteDriver(encryptionKey, encryptionKeyBytes))
+	return name, nil
 }
 
 // Naming constants.

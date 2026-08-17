@@ -190,9 +190,18 @@ type DB struct {
 	// Where to send log messages, defaults to global slog with database epath.
 	Logger *slog.Logger
 
-	// EncryptionKey is the SQLCipher PRAGMA key for this database.
-	// If non-empty, set on litestreamDriver before opening connections.
+	// EncryptionKey is the SQLCipher PRAGMA key for this database, as a SQL
+	// literal (for example "x'0123…'"). Applied to every connection of this
+	// DB's registered driver.
 	EncryptionKey string
+
+	// EncryptionKeyBytes is the raw SQLCipher key for this database. When
+	// non-empty it takes precedence over EncryptionKey. Applied to every
+	// connection of this DB's registered driver.
+	EncryptionKeyBytes []byte
+
+	// driverName is the registered per-DB sqlite driver (see registerSQLiteDriver).
+	driverName string
 }
 
 // syncState holds mutable sync-tracking fields extracted from DB.
@@ -1003,7 +1012,7 @@ func (db *DB) syncReplicaWithRetry(ctx context.Context) error {
 // setPersistWAL sets the PERSIST_WAL file control on the database connection.
 // This prevents SQLite from removing the WAL file when connections close.
 // With the mattn/go-sqlite3 driver, PERSIST_WAL is set in the ConnectHook
-// (see litestreamDriver in litestream.go), so this is a per-connection Raw call.
+// (see newSQLiteDriver in litestream.go), so this is a per-connection Raw call.
 func (db *DB) setPersistWAL(ctx context.Context) error {
 	conn, err := db.db.Conn(ctx)
 	if err != nil {
@@ -1046,11 +1055,14 @@ func (db *DB) init(ctx context.Context) (err error) {
 	dsn := db.path
 	dsn += fmt.Sprintf("?_busy_timeout=%d", db.BusyTimeout.Milliseconds())
 
-	// If encrypted with SQLCipher, set the key on the shared driver so
-	// PRAGMA key is the first SQL after sqlite3_open_v2().
-	litestreamDriver.EncryptionKey = db.EncryptionKey
+	// Register a per-database driver carrying this DB's SQLCipher key so
+	// PRAGMA key is the first SQL after sqlite3_open_v2() on every pooled
+	// connection, without racing a shared global.
+	if db.driverName, err = registerSQLiteDriver(db.EncryptionKey, db.EncryptionKeyBytes); err != nil {
+		return fmt.Errorf("register sqlite driver: %w", err)
+	}
 
-	if db.db, err = sql.Open("litestream-sqlite3", dsn); err != nil {
+	if db.db, err = sql.Open(db.driverName, dsn); err != nil {
 		return err
 	}
 

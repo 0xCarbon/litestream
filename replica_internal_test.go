@@ -397,16 +397,25 @@ func mustCreateValidSQLiteDB(tb testing.TB) string {
 	return dbPath
 }
 
+func testDriverName(tb testing.TB) string {
+	tb.Helper()
+	name, err := registerSQLiteDriver("", nil)
+	if err != nil {
+		tb.Fatal(err)
+	}
+	return name
+}
+
 func TestCheckIntegrity_Quick_ValidDB(t *testing.T) {
 	dbPath := mustCreateValidSQLiteDB(t)
-	if err := checkIntegrity(context.Background(), dbPath, "", IntegrityCheckQuick); err != nil {
+	if err := checkIntegrity(context.Background(), dbPath, testDriverName(t), IntegrityCheckQuick); err != nil {
 		t.Fatalf("expected no error, got: %v", err)
 	}
 }
 
 func TestCheckIntegrity_Full_ValidDB(t *testing.T) {
 	dbPath := mustCreateValidSQLiteDB(t)
-	if err := checkIntegrity(context.Background(), dbPath, "", IntegrityCheckFull); err != nil {
+	if err := checkIntegrity(context.Background(), dbPath, testDriverName(t), IntegrityCheckFull); err != nil {
 		t.Fatalf("expected no error, got: %v", err)
 	}
 }
@@ -451,7 +460,7 @@ func TestCheckIntegrity_CorruptDB(t *testing.T) {
 	}
 	_ = f.Close()
 
-	err = checkIntegrity(context.Background(), dbPath, "", IntegrityCheckFull)
+	err = checkIntegrity(context.Background(), dbPath, testDriverName(t), IntegrityCheckFull)
 	if err == nil {
 		t.Fatal("expected integrity check to fail on corrupt database")
 	}
