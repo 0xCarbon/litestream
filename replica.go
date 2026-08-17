@@ -1176,7 +1176,11 @@ func (r *Replica) RestoreV3(ctx context.Context, opt RestoreOptions) error {
 
 	// Create temp file for restore.
 	tmpPath := opt.OutputPath + ".tmp"
-	defer func() { _ = os.Remove(tmpPath) }()
+	defer func() {
+		_ = os.Remove(tmpPath)
+		_ = os.Remove(tmpPath + "-wal")
+		_ = os.Remove(tmpPath + "-shm")
+	}()
 
 	// Download and decompress snapshot.
 	if err := r.downloadSnapshotV3(ctx, client, snapshot.Generation, snapshot.Index, tmpPath); err != nil {
@@ -1358,8 +1362,16 @@ func checkpointV3(dbPath string, drv *sqlite3.SQLiteDriver) error {
 	db := newSQLitePool(drv, dbPath)
 	defer func() { _ = db.Close() }()
 
-	_, err := db.Exec("PRAGMA wal_checkpoint(TRUNCATE)")
-	return err
+	if _, err := db.Exec("PRAGMA wal_checkpoint(TRUNCATE)"); err != nil {
+		return err
+	}
+
+	// The ConnectHook sets PERSIST_WAL, so closing the pool leaves a 0-byte
+	// -wal (and -shm) behind. Restore outputs are single-file databases;
+	// remove the sidecars. The next WAL rotation recreates them if needed.
+	_ = os.Remove(dbPath + "-wal")
+	_ = os.Remove(dbPath + "-shm")
+	return nil
 }
 
 // checkIntegrity runs a SQLite integrity check on the database at dbPath.

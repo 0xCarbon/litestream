@@ -423,6 +423,31 @@ func TestVFSFile_SkipJournalPatchLeavesHeaderUntouched(t *testing.T) {
 	}
 }
 
+func TestVFSFile_SkipJournalPatchCacheHitPath(t *testing.T) {
+	client := newMockReplicaClient()
+	client.addFixture(t, buildLTXFixture(t, 1, 'h'))
+
+	f := NewVFSFile(client, "skip-journal-cache.db", slog.Default())
+	f.SkipJournalPatch = true
+	if err := f.Open(); err != nil {
+		t.Fatalf("open vfs file: %v", err)
+	}
+	defer f.Close()
+
+	buf := make([]byte, 32)
+	if _, err := f.ReadAt(buf, 0); err != nil {
+		t.Fatalf("first read: %v", err)
+	}
+	// Second read of page 1 is served from the page cache; the patch must
+	// stay disabled on that path too.
+	if _, err := f.ReadAt(buf, 0); err != nil {
+		t.Fatalf("cached read: %v", err)
+	}
+	if buf[18] != 'h' || buf[19] != 'h' {
+		t.Fatalf("cached read must leave header bytes untouched, got %x %x", buf[18], buf[19])
+	}
+}
+
 func TestVFSFile_ShortReadAtOffsetZeroDoesNotPanic(t *testing.T) {
 	for _, skip := range []bool{false, true} {
 		client := newMockReplicaClient()
