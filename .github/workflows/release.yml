@@ -31,10 +31,13 @@ jobs:
           go-version-file: go.mod
           cache: true
 
-      - name: Install cross-compilers
+      - name: Install cross-compilers and libcrypto (SQLCipher)
         run: |
           sudo apt-get update
-          sudo apt-get install -y gcc-aarch64-linux-gnu gcc-arm-linux-gnueabihf gcc-arm-linux-gnueabi
+          sudo apt-get install -y gcc-aarch64-linux-gnu libssl-dev
+          sudo dpkg --add-architecture arm64
+          sudo apt-get update
+          sudo apt-get install -y libssl-dev:arm64
 
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v3

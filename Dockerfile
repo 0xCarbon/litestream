@@ -1,17 +1,18 @@
 FROM golang:1.25 AS builder
 
 # Install build dependencies for VFS extension
-RUN apt-get update && apt-get install -y gcc libc6-dev && rm -rf /var/lib/apt/lists/*
+RUN apt-get update && apt-get install -y gcc libc6-dev libssl-dev zlib1g-dev libzstd-dev && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /src/litestream
 COPY . .
 
 ARG LITESTREAM_VERSION=latest
 
-# Build litestream binary
+# Build litestream binary. SQLCipher links libcrypto; static archives also
+# need zlib and zstd explicitly (the dynamic lib pulls them via DT_NEEDED).
 RUN --mount=type=cache,target=/root/.cache/go-build \
 	--mount=type=cache,target=/go/pkg \
-	go build -ldflags "-s -w -X 'main.Version=${LITESTREAM_VERSION}' -extldflags '-static'" -tags osusergo,netgo,sqlite_omit_load_extension -o /usr/local/bin/litestream ./cmd/litestream
+	CGO_LDFLAGS="-lz -lzstd" go build -ldflags "-s -w -X 'main.Version=${LITESTREAM_VERSION}' -extldflags '-static'" -tags osusergo,netgo,sqlite_omit_load_extension -o /usr/local/bin/litestream ./cmd/litestream
 
 # Build VFS loadable extension
 RUN --mount=type=cache,target=/root/.cache/go-build \

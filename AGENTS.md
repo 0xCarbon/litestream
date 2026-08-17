@@ -1,6 +1,6 @@
 # AGENTS.md - Litestream AI Agent Guide
 
-Litestream is a disaster recovery tool for SQLite that runs as a background process, monitors the WAL, converts changes to immutable LTX files, and replicates them to cloud storage. It uses `modernc.org/sqlite` (pure Go, no CGO required).
+Litestream is a disaster recovery tool for SQLite that runs as a background process, monitors the WAL, converts changes to immutable LTX files, and replicates them to cloud storage. This fork uses `mattn/go-sqlite3` (via the 0xCarbon fork with bundled SQLCipher) — CGO is required and libcrypto is linked.
 
 ## Before You Start
 
@@ -71,3 +71,22 @@ Before submitting changes:
 - [ ] Run `pre-commit run --all-files`
 - [ ] For page iteration: test with >1GB databases
 - [ ] Show investigation evidence in PR (see [AI_PR_GUIDE.md](AI_PR_GUIDE.md))
+
+
+## Fork Deltas (0xCarbon)
+
+This fork tracks upstream `benbjohnson/litestream` and adds:
+
+- **Driver**: per-database `mattn/go-sqlite3` driver instances (registered as
+  `litestream-sqlite3-<seq>`), each carrying its database's SQLCipher key;
+  see `registerSQLiteDriver` in `litestream.go`.
+- **Encryption**: `DB.EncryptionKey` (SQL-literal string, e.g. `x'…'`) and
+  `DB.EncryptionKeyBytes` (raw bytes; takes precedence). Keys are applied as
+  the first statement of every pooled connection.
+- **VFS**: `VFS.SkipJournalPatch` / `VFSFile.SkipJournalPatch` disable the
+  page-1 journal-mode emulation patch, required for SQLCipher databases
+  (plaintext bytes 18-19/24-28 must not be rewritten on ciphertext pages).
+- **Pin policy**: consumer modules pin this fork via the `pin/<sha>` branches
+  (e.g. `pin/7a606e384ee9`); never force-push or delete them.
+- **Build**: CGO required; SQLCipher links libcrypto (see Dockerfile and CI
+  workflows). Pure-Go (modernc) builds are not supported in this fork.
