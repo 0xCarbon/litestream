@@ -14,7 +14,7 @@ import (
 	"testing"
 	"time"
 
-	_ "github.com/mattn/go-sqlite3"
+	"github.com/mattn/go-sqlite3"
 	"github.com/superfly/ltx"
 )
 
@@ -397,31 +397,27 @@ func mustCreateValidSQLiteDB(tb testing.TB) string {
 	return dbPath
 }
 
-func testDriverName(tb testing.TB) string {
+func testDriver(tb testing.TB) *sqlite3.SQLiteDriver {
 	tb.Helper()
-	name, err := registerSQLiteDriver("", nil)
-	if err != nil {
-		tb.Fatal(err)
-	}
-	return name
+	return newSQLiteDriver("", nil)
 }
 
 func TestCheckIntegrity_Quick_ValidDB(t *testing.T) {
 	dbPath := mustCreateValidSQLiteDB(t)
-	if err := checkIntegrity(context.Background(), dbPath, testDriverName(t), IntegrityCheckQuick); err != nil {
+	if err := checkIntegrity(context.Background(), dbPath, testDriver(t), IntegrityCheckQuick); err != nil {
 		t.Fatalf("expected no error, got: %v", err)
 	}
 }
 
 func TestCheckIntegrity_Full_ValidDB(t *testing.T) {
 	dbPath := mustCreateValidSQLiteDB(t)
-	if err := checkIntegrity(context.Background(), dbPath, testDriverName(t), IntegrityCheckFull); err != nil {
+	if err := checkIntegrity(context.Background(), dbPath, testDriver(t), IntegrityCheckFull); err != nil {
 		t.Fatalf("expected no error, got: %v", err)
 	}
 }
 
 func TestCheckIntegrity_None_Skips(t *testing.T) {
-	if err := checkIntegrity(context.Background(), "/nonexistent/path.db", "", IntegrityCheckNone); err != nil {
+	if err := checkIntegrity(context.Background(), "/nonexistent/path.db", testDriver(t), IntegrityCheckNone); err != nil {
 		t.Fatalf("expected nil for IntegrityCheckNone, got: %v", err)
 	}
 }
@@ -460,7 +456,7 @@ func TestCheckIntegrity_CorruptDB(t *testing.T) {
 	}
 	_ = f.Close()
 
-	err = checkIntegrity(context.Background(), dbPath, testDriverName(t), IntegrityCheckFull)
+	err = checkIntegrity(context.Background(), dbPath, testDriver(t), IntegrityCheckFull)
 	if err == nil {
 		t.Fatal("expected integrity check to fail on corrupt database")
 	}

@@ -202,8 +202,9 @@ type DB struct {
 	// connection of this DB's registered driver.
 	EncryptionKeyBytes []byte
 
-	// driverName is the registered per-DB sqlite driver (see registerSQLiteDriver).
-	driverName string
+	// sqliteDriver is this DB's own driver instance, carrying its SQLCipher
+	// key (see newSQLiteDriver/newSQLitePool).
+	sqliteDriver *sqlite3.SQLiteDriver
 }
 
 // syncState holds mutable sync-tracking fields extracted from DB.
@@ -1011,26 +1012,6 @@ func (db *DB) syncReplicaWithRetry(ctx context.Context) error {
 	}
 }
 
-// setPersistWAL sets the PERSIST_WAL file control on the database connection.
-// This prevents SQLite from removing the WAL file when connections close.
-// With the mattn/go-sqlite3 driver, PERSIST_WAL is set in the ConnectHook
-// (see newSQLiteDriver in litestream.go), so this is a per-connection Raw call.
-func (db *DB) setPersistWAL(ctx context.Context) error {
-	conn, err := db.db.Conn(ctx)
-	if err != nil {
-		return fmt.Errorf("get connection: %w", err)
-	}
-	defer conn.Close()
-
-	return conn.Raw(func(driverConn interface{}) error {
-		sqliteConn, ok := driverConn.(*sqlite3.SQLiteConn)
-		if !ok {
-			return fmt.Errorf("driver connection is not *sqlite3.SQLiteConn")
-		}
-		return sqliteConn.SetFileControlInt("main", sqlite3.SQLITE_FCNTL_PERSIST_WAL, 1)
-	})
-}
-
 // init initializes the connection to the database.
 // Skipped if already initialized or if the database file does not exist.
 func (db *DB) init(ctx context.Context) (err error) {
@@ -1060,21 +1041,14 @@ func (db *DB) init(ctx context.Context) (err error) {
 	// can lose the newest commits on power loss in WAL mode.
 	dsn += fmt.Sprintf("?_busy_timeout=%d&_sync=FULL", db.BusyTimeout.Milliseconds())
 
-	// Register a per-database driver carrying this DB's SQLCipher key so
-	// PRAGMA key is the first SQL after sqlite3_open_v2() on every pooled
-	// connection, without racing a shared global.
-	if db.driverName, err = registerSQLiteDriver(db.EncryptionKey, db.EncryptionKeyBytes); err != nil {
-		return fmt.Errorf("register sqlite driver: %w", err)
-	}
+	// Open a private pool whose connections carry this DB's SQLCipher key
+	// (PRAGMA key is the first SQL after sqlite3_open_v2()) without a global
+	// driver registration.
+	db.sqliteDriver = newSQLiteDriver(db.EncryptionKey, db.EncryptionKeyBytes)
+	db.db = newSQLitePool(db.sqliteDriver, dsn)
 
-	if db.db, err = sql.Open(db.driverName, dsn); err != nil {
-		return err
-	}
-
-	// Set PERSIST_WAL to prevent WAL file removal when database connections close.
-	if err := db.setPersistWAL(ctx); err != nil {
-		return fmt.Errorf("set PERSIST_WAL: %w", err)
-	}
+	// PERSIST_WAL and wal_autocheckpoint=0 are applied to every pooled
+	// connection by the driver's ConnectHook (newSQLiteDriver).
 
 	// Open long-running database file descriptor. Required for non-OFD locks.
 	if db.f, err = os.Open(db.path); err != nil {
@@ -1099,11 +1073,6 @@ func (db *DB) init(ctx context.Context) (err error) {
 		return err
 	} else if mode != "wal" {
 		return fmt.Errorf("enable wal failed, mode=%q", mode)
-	}
-
-	// Disable autocheckpoint for litestream's connection.
-	if _, err := db.db.ExecContext(ctx, `PRAGMA wal_autocheckpoint = 0;`); err != nil {
-		return fmt.Errorf("disable autocheckpoint: %w", err)
 	}
 
 	// Create a table to force writes to the WAL when empty.

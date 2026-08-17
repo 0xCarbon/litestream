@@ -1,7 +1,10 @@
 package litestream
 
 import (
+	"bytes"
+	"context"
 	"database/sql"
+	"database/sql/driver"
 	"encoding/binary"
 	"errors"
 	"fmt"
@@ -12,18 +15,10 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
-	"sync/atomic"
 
 	"github.com/mattn/go-sqlite3"
 	"github.com/superfly/ltx"
 )
-
-// sqliteDriverSeq generates unique database/sql driver names. Each DB
-// registers its own sqlite3.SQLiteDriver so concurrent DBs can hold different
-// SQLCipher keys without racing a shared global. database/sql has no
-// Unregister; names accumulate per DB instance, mirroring the accepted
-// sqlite3vfs VFS-name behavior in consumers.
-var sqliteDriverSeq atomic.Uint64
 
 // normalizeEncryptionKey adapts a key string for the driver's raw
 // `PRAGMA key = %s;` interpolation. SQLite's PRAGMA grammar accepts only a
@@ -50,7 +45,9 @@ func newSQLiteDriver(encryptionKey string, encryptionKeyBytes []byte) *sqlite3.S
 	return &sqlite3.SQLiteDriver{
 		EncryptionKey: normalizeEncryptionKey(encryptionKey),
 		// EncryptionKeyBytes takes precedence over EncryptionKey when set.
-		EncryptionKeyBytes: encryptionKeyBytes,
+		// Clone so the caller may zero its slice after opening; the driver
+		// keeps opening connections for the pool's lifetime.
+		EncryptionKeyBytes: bytes.Clone(encryptionKeyBytes),
 		ConnectHook: func(conn *sqlite3.SQLiteConn) error {
 			if err := conn.SetFileControlInt("main", sqlite3.SQLITE_FCNTL_PERSIST_WAL, 1); err != nil {
 				return fmt.Errorf("cannot set file control: %w", err)
@@ -66,13 +63,27 @@ func newSQLiteDriver(encryptionKey string, encryptionKeyBytes []byte) *sqlite3.S
 	}
 }
 
-// registerSQLiteDriver registers a per-database driver under a unique name
-// and returns the name for sql.Open. Call before opening connections so the
-// key is set before first use on every pooled connection.
-func registerSQLiteDriver(encryptionKey string, encryptionKeyBytes []byte) (string, error) {
-	name := fmt.Sprintf("litestream-sqlite3-%d", sqliteDriverSeq.Add(1))
-	sql.Register(name, newSQLiteDriver(encryptionKey, encryptionKeyBytes))
-	return name, nil
+// sqliteConnector adapts a *sqlite3.SQLiteDriver and a DSN to the
+// database/sql Connector interface. Each DB opens its pool with
+// sql.OpenDB instead of a global sql.Register name: registrations are
+// never removed, so a registry would retain key material for the
+// process lifetime and leak one entry per open/close cycle.
+type sqliteConnector struct {
+	drv *sqlite3.SQLiteDriver
+	dsn string
+}
+
+func (c *sqliteConnector) Connect(context.Context) (driver.Conn, error) {
+	return c.drv.Open(c.dsn)
+}
+
+func (c *sqliteConnector) Driver() driver.Driver { return c.drv }
+
+// newSQLitePool builds a connection pool around a driver built by
+// newSQLiteDriver, so every connection carries the SQLCipher key and
+// Litestream's per-connection settings.
+func newSQLitePool(drv *sqlite3.SQLiteDriver, dsn string) *sql.DB {
+	return sql.OpenDB(&sqliteConnector{drv: drv, dsn: dsn})
 }
 
 // Naming constants.

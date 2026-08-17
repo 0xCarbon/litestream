@@ -3,7 +3,6 @@ package litestream
 import (
 	"context"
 	"crypto/rand"
-	"database/sql"
 	"errors"
 	"fmt"
 	"io"
@@ -15,6 +14,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/mattn/go-sqlite3"
 	"github.com/superfly/ltx"
 	"golang.org/x/sync/semaphore"
 
@@ -37,11 +37,6 @@ type Replica struct {
 
 	mu  sync.RWMutex
 	pos ltx.Pos // current replicated position
-
-	// Fallback driver for DB-less restores (registered at most once).
-	driverNameOnce sync.Once
-	driverName     string
-	driverNameErr  error
 
 	syncSem     *semaphore.Weighted
 	syncWaiters atomic.Int64 // diagnostic instrumentation: goroutines queued on syncSem
@@ -115,18 +110,15 @@ func (r *Replica) encrypted() bool {
 	return r.encryptionKey() != "" || r.encryptionKeyBytes() != nil
 }
 
-// sqliteDriverName returns the database/sql driver name carrying this
-// replica's SQLCipher key. Falls back to a per-replica registered driver
-// when the replica has no owning DB (DB-less restores are treated as
-// unencrypted).
-func (r *Replica) sqliteDriverName() (string, error) {
-	if r.db != nil && r.db.driverName != "" {
-		return r.db.driverName, nil
+// sqliteDriver returns a driver carrying this replica's SQLCipher key: the
+// owning DB's own driver when it exists, else a fresh instance (DB-less
+// restores use the replica's key fields, empty when unencrypted). Drivers
+// are not globally registered, so the fallback is garbage-collected.
+func (r *Replica) sqliteDriver() *sqlite3.SQLiteDriver {
+	if r.db != nil && r.db.sqliteDriver != nil {
+		return r.db.sqliteDriver
 	}
-	r.driverNameOnce.Do(func() {
-		r.driverName, r.driverNameErr = registerSQLiteDriver(r.encryptionKey(), r.encryptionKeyBytes())
-	})
-	return r.driverName, r.driverNameErr
+	return newSQLiteDriver(r.encryptionKey(), r.encryptionKeyBytes())
 }
 
 // Logger returns the DB sub-logger for this replica.
@@ -809,11 +801,7 @@ func (r *Replica) Restore(ctx context.Context, opt RestoreOptions) (err error) {
 	}
 
 	if opt.IntegrityCheck != IntegrityCheckNone {
-		driverName, err := r.sqliteDriverName()
-		if err != nil {
-			return err
-		}
-		if err := checkIntegrity(ctx, opt.OutputPath, driverName, opt.IntegrityCheck); err != nil {
+		if err := checkIntegrity(ctx, opt.OutputPath, r.sqliteDriver(), opt.IntegrityCheck); err != nil {
 			if ctx.Err() == nil {
 				_ = os.Remove(opt.OutputPath)
 				_ = os.Remove(opt.OutputPath + "-shm")
@@ -1209,11 +1197,7 @@ func (r *Replica) RestoreV3(ctx context.Context, opt RestoreOptions) error {
 	}
 
 	if opt.IntegrityCheck != IntegrityCheckNone {
-		driverName, err := r.sqliteDriverName()
-		if err != nil {
-			return err
-		}
-		if err := checkIntegrity(ctx, opt.OutputPath, driverName, opt.IntegrityCheck); err != nil {
+		if err := checkIntegrity(ctx, opt.OutputPath, r.sqliteDriver(), opt.IntegrityCheck); err != nil {
 			if ctx.Err() == nil {
 				_ = os.Remove(opt.OutputPath)
 				_ = os.Remove(opt.OutputPath + "-shm")
@@ -1311,12 +1295,6 @@ func (r *Replica) applyWALSegmentsV3(ctx context.Context, client ReplicaClientV3
 		}
 	}()
 
-	// Restore paths run against the replica's SQLCipher key, if any.
-	driverName, err := r.sqliteDriverName()
-	if err != nil {
-		return err
-	}
-
 	applyLastWalFile := func() error {
 		if f == nil {
 			return nil
@@ -1324,7 +1302,7 @@ func (r *Replica) applyWALSegmentsV3(ctx context.Context, client ReplicaClientV3
 			return err
 		}
 		f = nil
-		if err = checkpointV3(dbPath, driverName); err != nil {
+		if err = checkpointV3(dbPath, r.sqliteDriver()); err != nil {
 			return err
 		}
 		r.Logger().Debug("applied WAL index", "generation", generation, "index", expectedIndex-1, "bytes", offset)
@@ -1374,29 +1352,23 @@ func (r *Replica) appendWALSegmentV3(ctx context.Context, client ReplicaClientV3
 	return io.Copy(f, rc)
 }
 
-// checkpointV3 checkpoints the WAL file into the database. The driver name
-// must carry the database's SQLCipher key (see (*Replica).sqliteDriverName).
-func checkpointV3(dbPath, driverName string) error {
-	db, err := sql.Open(driverName, dbPath)
-	if err != nil {
-		return err
-	}
+// checkpointV3 checkpoints the WAL file into the database. The driver must
+// carry the database's SQLCipher key (see (*Replica).sqliteDriver).
+func checkpointV3(dbPath string, drv *sqlite3.SQLiteDriver) error {
+	db := newSQLitePool(drv, dbPath)
 	defer func() { _ = db.Close() }()
 
-	_, err = db.Exec("PRAGMA wal_checkpoint(TRUNCATE)")
+	_, err := db.Exec("PRAGMA wal_checkpoint(TRUNCATE)")
 	return err
 }
 
 // checkIntegrity runs a SQLite integrity check on the database at dbPath.
-func checkIntegrity(ctx context.Context, dbPath, driverName string, mode IntegrityCheckMode) error {
+func checkIntegrity(ctx context.Context, dbPath string, drv *sqlite3.SQLiteDriver, mode IntegrityCheckMode) error {
 	if mode == IntegrityCheckNone {
 		return nil
 	}
 
-	db, err := sql.Open(driverName, dbPath)
-	if err != nil {
-		return fmt.Errorf("open database for integrity check: %w", err)
-	}
+	db := newSQLitePool(drv, dbPath)
 	defer func() { _ = db.Close() }()
 
 	var pragma string
