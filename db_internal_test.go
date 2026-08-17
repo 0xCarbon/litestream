@@ -21,7 +21,8 @@ import (
 	"github.com/prometheus/client_golang/prometheus/testutil"
 	"github.com/superfly/ltx"
 	"golang.org/x/sync/semaphore"
-	_ "modernc.org/sqlite"
+
+	_ "github.com/mattn/go-sqlite3"
 
 	"github.com/benbjohnson/litestream/internal"
 )
@@ -401,7 +402,7 @@ func TestReplica_SyncOnceLimitsLTXFiles(t *testing.T) {
 		}
 	}()
 
-	sqldb, err := sql.Open("sqlite", dbPath)
+	sqldb, err := sql.Open("sqlite3", dbPath)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -489,7 +490,7 @@ func TestReplicaMonitor_DrainsLimitedBacklogWithoutWaitingForInterval(t *testing
 		}
 	}()
 
-	sqldb, err := sql.Open("sqlite", dbPath)
+	sqldb, err := sql.Open("sqlite3", dbPath)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -655,7 +656,7 @@ func TestDB_SyncChunksWALAtCommitBoundary(t *testing.T) {
 		}
 	}()
 
-	sqldb, err := sql.Open("sqlite", dbPath)
+	sqldb, err := sql.Open("sqlite3", dbPath)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -718,7 +719,7 @@ func TestDB_SyncTruncateCheckpointFiresDuringChunkedCatchUp(t *testing.T) {
 		}
 	}()
 
-	sqldb, err := sql.Open("sqlite", dbPath)
+	sqldb, err := sql.Open("sqlite3", dbPath)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -793,7 +794,7 @@ func TestDB_CheckpointPassiveRestartSkipsTruncate(t *testing.T) {
 		}
 	}()
 
-	sqldb, err := sql.Open("sqlite", dbPath)
+	sqldb, err := sql.Open("sqlite3", dbPath)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -871,7 +872,7 @@ func TestDB_CheckpointTruncateSkipsRepeatedPassiveWithoutProgress(t *testing.T) 
 		}
 	}()
 
-	sqldb, err := sql.Open("sqlite", dbPath)
+	sqldb, err := sql.Open("sqlite3", dbPath)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1139,7 +1140,7 @@ func TestDB_Sync_UpdatesMetrics(t *testing.T) {
 	}()
 
 	// Open SQL connection
-	sqldb, err := sql.Open("sqlite", dbPath)
+	sqldb, err := sql.Open("sqlite3", dbPath)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1232,7 +1233,7 @@ func TestDB_Checkpoint_UpdatesMetrics(t *testing.T) {
 		}
 	}()
 
-	sqldb, err := sql.Open("sqlite", dbPath)
+	sqldb, err := sql.Open("sqlite3", dbPath)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1298,7 +1299,7 @@ func TestDB_ReplicaSync_OperationMetrics(t *testing.T) {
 		}
 	}()
 
-	sqldb, err := sql.Open("sqlite", dbPath)
+	sqldb, err := sql.Open("sqlite3", dbPath)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1357,7 +1358,7 @@ func TestDB_Sync_ErrorMetrics(t *testing.T) {
 	}
 	defer func() { _ = db.Close(context.Background()) }()
 
-	sqldb, err := sql.Open("sqlite", dbPath)
+	sqldb, err := sql.Open("sqlite3", dbPath)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1467,7 +1468,7 @@ func TestDB_SyncReturnsDiskFullErrorForLTXStaging(t *testing.T) {
 			}
 			defer func() { _ = db.Close(context.Background()) }()
 
-			sqldb, err := sql.Open("sqlite", dbPath)
+			sqldb, err := sql.Open("sqlite3", dbPath)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -1542,7 +1543,7 @@ func TestDB_DiskFullGaugeResetsOnOtherSyncErrors(t *testing.T) {
 	}
 	defer func() { _ = db.Close(context.Background()) }()
 
-	sqldb, err := sql.Open("sqlite", dbPath)
+	sqldb, err := sql.Open("sqlite3", dbPath)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1606,7 +1607,7 @@ func TestDB_MonitorRetriesAndRecoversFromLTXStagingDiskFull(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	sqldb, err := sql.Open("sqlite", dbPath)
+	sqldb, err := sql.Open("sqlite3", dbPath)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1733,7 +1734,7 @@ func TestDB_Checkpoint_ErrorMetrics(t *testing.T) {
 	}
 	defer func() { _ = db.Close(context.Background()) }()
 
-	sqldb, err := sql.Open("sqlite", dbPath)
+	sqldb, err := sql.Open("sqlite3", dbPath)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1782,7 +1783,7 @@ func TestDB_L0RetentionMetrics(t *testing.T) {
 	}
 	defer func() { _ = db.Close(context.Background()) }()
 
-	sqldb, err := sql.Open("sqlite", dbPath)
+	sqldb, err := sql.Open("sqlite3", dbPath)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1846,7 +1847,7 @@ func TestDB_Verify_WALOffsetAtHeader(t *testing.T) {
 		}
 	}()
 
-	sqldb, err := sql.Open("sqlite", dbPath)
+	sqldb, err := sql.Open("sqlite3", dbPath)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1968,7 +1969,7 @@ func TestDB_Verify_WALOffsetAtHeader_SaltMismatch(t *testing.T) {
 		}
 	}()
 
-	sqldb, err := sql.Open("sqlite", dbPath)
+	sqldb, err := sql.Open("sqlite3", dbPath)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -2089,7 +2090,7 @@ func TestDB_releaseReadLock_DoubleRollback(t *testing.T) {
 	}
 
 	// Open SQL connection to create a WAL database
-	sqldb, err := sql.Open("sqlite", dbPath)
+	sqldb, err := sql.Open("sqlite3", dbPath)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -2168,7 +2169,7 @@ func testCheckpointSnapshot(t *testing.T, mode string) {
 		}
 	}()
 
-	sqldb, err := sql.Open("sqlite", dbPath)
+	sqldb, err := sql.Open("sqlite3", dbPath)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -2271,7 +2272,7 @@ func TestDB_MultipleCheckpointsWithWrites(t *testing.T) {
 		}
 	}()
 
-	sqldb, err := sql.Open("sqlite", dbPath)
+	sqldb, err := sql.Open("sqlite3", dbPath)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -2481,7 +2482,7 @@ func TestDB_IdleCheckpointSnapshotLoop(t *testing.T) {
 		}
 	}()
 
-	sqldb, err := sql.Open("sqlite", dbPath)
+	sqldb, err := sql.Open("sqlite3", dbPath)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -2565,7 +2566,7 @@ func TestDB_Issue994_RunawayDiskUsage(t *testing.T) {
 		}
 	}()
 
-	sqldb, err := sql.Open("sqlite", dbPath)
+	sqldb, err := sql.Open("sqlite3", dbPath)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -2683,7 +2684,7 @@ func TestDB_WALPageCoverage_AllNewPagesPresent(t *testing.T) {
 	dir := t.TempDir()
 	dbPath := filepath.Join(dir, "db")
 
-	sqldb, err := sql.Open("sqlite", dbPath)
+	sqldb, err := sql.Open("sqlite3", dbPath)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -2763,7 +2764,7 @@ func TestDB_WriteLTXFromWAL_PageGrowthCoverage(t *testing.T) {
 	}
 	defer db.Close(context.Background())
 
-	sqldb, err := sql.Open("sqlite", dbPath)
+	sqldb, err := sql.Open("sqlite3", dbPath)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -3030,7 +3031,7 @@ func TestDB_Sync_CompactionValidAfterGrowthAndCheckpoint(t *testing.T) {
 	}
 	defer db.Close(context.Background())
 
-	sqldb, err := sql.Open("sqlite", dbPath)
+	sqldb, err := sql.Open("sqlite3", dbPath)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -3147,7 +3148,7 @@ func TestDB_CheckpointCreatesSnapshotL0(t *testing.T) {
 		}
 	}()
 
-	sqldb, err := sql.Open("sqlite", dbPath)
+	sqldb, err := sql.Open("sqlite3", dbPath)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -3282,7 +3283,7 @@ func TestDB_CheckpointPageGapWithConcurrentWrites(t *testing.T) {
 		}
 	}()
 
-	sqldb, err := sql.Open("sqlite", dbPath)
+	sqldb, err := sql.Open("sqlite3", dbPath)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -3738,7 +3739,7 @@ func TestVerifyAndSync_DelaysStateMutationUntilApply(t *testing.T) {
 		_ = db.Close(context.Background())
 	}()
 
-	sqldb, err := sql.Open("sqlite", dbPath)
+	sqldb, err := sql.Open("sqlite3", dbPath)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -3864,7 +3865,7 @@ func TestVerifyAndSync_DelaysExpectedTruncationStateMutationUntilApply(t *testin
 		_ = db.Close(context.Background())
 	}()
 
-	sqldb, err := sql.Open("sqlite", dbPath)
+	sqldb, err := sql.Open("sqlite3", dbPath)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -3936,7 +3937,7 @@ func TestApplySyncExecutor_PreservesInvalidatedPosCache(t *testing.T) {
 		_ = db.Close(context.Background())
 	}()
 
-	sqldb, err := sql.Open("sqlite", dbPath)
+	sqldb, err := sql.Open("sqlite3", dbPath)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -3990,7 +3991,7 @@ func TestReplicaMonitor_IdleRecordsSyncHealth(t *testing.T) {
 		_ = db.Close(context.Background())
 	}()
 
-	sqldb, err := sql.Open("sqlite", dbPath)
+	sqldb, err := sql.Open("sqlite3", dbPath)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -4046,7 +4047,7 @@ func TestReplicaMonitor_RecoversFromPositionError(t *testing.T) {
 		_ = db.Close(context.Background())
 	}()
 
-	sqldb, err := sql.Open("sqlite", dbPath)
+	sqldb, err := sql.Open("sqlite3", dbPath)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -4124,7 +4125,7 @@ func TestDB_CloseWithCanceledContextStillCleansUp(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	sqldb, err := sql.Open("sqlite", dbPath)
+	sqldb, err := sql.Open("sqlite3", dbPath)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -4203,7 +4204,7 @@ func runSyncRestoreIntegrity(t *testing.T, cfg syncRestoreIntegrityConfig) {
 	}
 	t.Cleanup(func() { _ = db.Close(context.Background()) })
 
-	sqldb, err := sql.Open("sqlite", dbPath)
+	sqldb, err := sql.Open("sqlite3", dbPath)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -4251,7 +4252,7 @@ func runSyncRestoreIntegrity(t *testing.T, cfg syncRestoreIntegrityConfig) {
 		t.Fatalf("restore: %v", err)
 	}
 
-	restoredDB, err := sql.Open("sqlite", restorePath)
+	restoredDB, err := sql.Open("sqlite3", restorePath)
 	if err != nil {
 		t.Fatalf("open restored db: %v", err)
 	}
@@ -4388,7 +4389,7 @@ func TestDB_SnapshotClosesReaderWhenReplicaReturnsEarly(t *testing.T) {
 	}
 	defer func() { _ = db.Close(context.Background()) }()
 
-	sqldb, err := sql.Open("sqlite", dbPath)
+	sqldb, err := sql.Open("sqlite3", dbPath)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -4441,7 +4442,7 @@ func TestDB_SnapshotReaderConsistentDuringConcurrentCheckpoints(t *testing.T) {
 	}
 	defer func() { _ = db.Close(context.Background()) }()
 
-	sqldb, err := sql.Open("sqlite", dbPath)
+	sqldb, err := sql.Open("sqlite3", dbPath)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -4582,7 +4583,7 @@ func TestDB_SnapshotReaderConsistentDuringConcurrentCheckpoints(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		restoredDB, err := sql.Open("sqlite", restorePath)
+		restoredDB, err := sql.Open("sqlite3", restorePath)
 		if err != nil {
 			t.Fatal(err)
 		}

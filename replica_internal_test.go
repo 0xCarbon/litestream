@@ -14,9 +14,8 @@ import (
 	"testing"
 	"time"
 
+	_ "github.com/mattn/go-sqlite3"
 	"github.com/superfly/ltx"
-
-	_ "modernc.org/sqlite"
 )
 
 func TestReplica_ApplyNewLTXFiles_FillGapWithOverlappingCompactedFile(t *testing.T) {
@@ -381,7 +380,7 @@ func ltxFixtureKey(level int, minTXID, maxTXID ltx.TXID) string {
 func mustCreateValidSQLiteDB(tb testing.TB) string {
 	tb.Helper()
 	dbPath := filepath.Join(tb.TempDir(), "test.db")
-	db, err := sql.Open("sqlite", dbPath)
+	db, err := sql.Open("sqlite3", dbPath)
 	if err != nil {
 		tb.Fatal(err)
 	}

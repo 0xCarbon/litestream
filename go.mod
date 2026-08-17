@@ -40,9 +40,7 @@ require (
 	github.com/google/renameio/v2 v2.0.0 // indirect
 	github.com/gorilla/handlers v1.5.1 // indirect
 	github.com/gorilla/mux v1.8.0 // indirect
-	github.com/ncruces/go-strftime v1.0.0 // indirect
 	github.com/pkg/xattr v0.4.9 // indirect
-	github.com/remyoudompheng/bigfft v0.0.0-20230129092748-24d4a6f8daec // indirect
 	github.com/sirupsen/logrus v1.9.3 // indirect
 	golang.org/x/sync v0.21.0
 )
@@ -58,7 +56,6 @@ require (
 	github.com/pierrec/lz4/v4 v4.1.23
 	github.com/stretchr/testify v1.11.1
 	golang.org/x/crypto/x509roots/fallback v0.0.0-20260209214922-2f26647a795e
-	modernc.org/sqlite v1.47.0
 )
 
 require (
@@ -133,9 +130,6 @@ require (
 	google.golang.org/grpc v1.82.1 // indirect
 	google.golang.org/protobuf v1.36.11 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
-	modernc.org/libc v1.70.0 // indirect
-	modernc.org/mathutil v1.7.1 // indirect
-	modernc.org/memory v1.11.0 // indirect
 )
 
 replace github.com/mattn/go-sqlite3 => github.com/0xCarbon/go-sqlite3 v1.14.38-0.20260515201505-c8f057756220
