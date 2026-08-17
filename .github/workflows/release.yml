@@ -143,160 +143,10 @@ jobs:
           name: vfs-linux-${{ matrix.arch }}
           path: dist/litestream-vfs-linux-${{ matrix.arch }}.so
 
-  vfs-build-darwin:
-    name: Build VFS (macOS ${{ matrix.arch }})
-    runs-on: ${{ matrix.runner }}
-    needs: goreleaser
-    strategy:
-      matrix:
-        include:
-          - arch: amd64
-            runner: macos-15
-          - arch: arm64
-            runner: macos-15
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
-      - name: Set up Go
-        uses: actions/setup-go@v5
-        with:
-          go-version-file: go.mod
-          cache: true
-
-      - name: Get version
-        id: version
-        run: |
-          if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
-            echo "version=${{ inputs.tag }}" >> $GITHUB_OUTPUT
-          else
-            echo "version=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
-          fi
-
-      - name: Build VFS extension
-        run: make vfs-darwin-${{ matrix.arch }}
-
-      - name: Verify artifact
-        run: |
-          file dist/litestream-vfs-darwin-${{ matrix.arch }}.dylib
-          # Verify architecture matches target
-          lipo -info dist/litestream-vfs-darwin-${{ matrix.arch }}.dylib
-          # Verify the expected symbol exists (macOS sqlite3 doesn't support .load)
-          nm -gU dist/litestream-vfs-darwin-${{ matrix.arch }}.dylib | grep sqlite3_litestreamvfs_init && echo "Entry point symbol found"
-
-      - name: Create archive
-        run: |
-          cd dist
-          cp litestream-vfs-darwin-${{ matrix.arch }}.dylib litestream.dylib
-          tar -czvf litestream-vfs-${{ steps.version.outputs.version }}-darwin-${{ matrix.arch }}.tar.gz \
-            litestream.dylib
-
-      - name: Generate checksum
-        run: |
-          cd dist
-          shasum -a 256 litestream-vfs-${{ steps.version.outputs.version }}-darwin-${{ matrix.arch }}.tar.gz \
-            > litestream-vfs-${{ steps.version.outputs.version }}-darwin-${{ matrix.arch }}.tar.gz.sha256
-
-      - name: Upload to release
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          gh release upload ${{ steps.version.outputs.version }} \
-            dist/litestream-vfs-${{ steps.version.outputs.version }}-darwin-${{ matrix.arch }}.tar.gz \
-            dist/litestream-vfs-${{ steps.version.outputs.version }}-darwin-${{ matrix.arch }}.tar.gz.sha256 \
-            --clobber
-
-      - name: Upload artifact for packaging
-        uses: actions/upload-artifact@v4
-        with:
-          name: vfs-darwin-${{ matrix.arch }}
-          path: dist/litestream-vfs-darwin-${{ matrix.arch }}.dylib
-
-  # macos-sign:
-  #   runs-on: macos-latest
-  #   needs: goreleaser
-  #   strategy:
-  #     matrix:
-  #       arch: [amd64, arm64]
-  #   steps:
-  #     - name: Checkout
-  #       uses: actions/checkout@v4
-
-  #     - name: Set up Go
-  #       uses: actions/setup-go@v5
-  #       with:
-  #         go-version-file: go.mod
-
-  #     - name: Download release artifacts
-  #       uses: actions/download-artifact@v4
-  #       with:
-  #         name: litestream-darwin-${{ matrix.arch }}
-  #         path: dist/
-
-  #     - name: Import Apple Developer Certificate
-  #       env:
-  #         MACOS_CERTIFICATE: ${{ secrets.MACOS_CERTIFICATE_P12 }}
-  #         MACOS_CERTIFICATE_PASSWORD: ${{ secrets.MACOS_CERTIFICATE_PASSWORD }}
-  #       run: |
-  #         echo "$MACOS_CERTIFICATE" | base64 --decode > certificate.p12
-  #         security create-keychain -p actions temp.keychain
-  #         security default-keychain -s temp.keychain
-  #         security unlock-keychain -p actions temp.keychain
-  #         security import certificate.p12 -k temp.keychain -P "$MACOS_CERTIFICATE_PASSWORD" -T /usr/bin/codesign
-  #         security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k actions temp.keychain
-
-  #     - name: Sign and Notarize
-  #       env:
-  #         APPLE_API_KEY: ${{ secrets.APPLE_API_KEY_P8 }}
-  #         APPLE_API_KEY_ID: ${{ secrets.APPLE_API_KEY_ID }}
-  #         APPLE_API_ISSUER_ID: ${{ secrets.APPLE_API_ISSUER_ID }}
-  #         AC_PASSWORD: ${{ secrets.AC_PASSWORD }}
-  #       run: |
-  #         gon etc/gon-${{ matrix.arch }}.hcl
-
-  #     - name: Upload signed binary
-  #       env:
-  #         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-  #       run: |
-  #         gh release upload ${{ github.ref_name }} dist/litestream-*-darwin-${{ matrix.arch }}.zip
-
-  # windows-sign:
-  #   runs-on: windows-latest
-  #   needs: goreleaser
-  #   strategy:
-  #     matrix:
-  #       arch: [amd64, arm64]
-  #   steps:
-  #     - name: Checkout
-  #       uses: actions/checkout@v4
-  #
-  #     - name: Download release artifacts
-  #       uses: actions/download-artifact@v4
-  #       with:
-  #         name: litestream-windows-${{ matrix.arch }}
-  #         path: dist/
-  #
-  #     - name: Sign Windows binary
-  #       env:
-  #         WINDOWS_CERTIFICATE_PFX: ${{ secrets.WINDOWS_CERTIFICATE_PFX }}
-  #         WINDOWS_CERTIFICATE_PASSWORD: ${{ secrets.WINDOWS_CERTIFICATE_PASSWORD }}
-  #       run: |
-  #         echo "$env:WINDOWS_CERTIFICATE_PFX" | base64 -d > cert.pfx
-  #         & signtool sign /f cert.pfx /p "$env:WINDOWS_CERTIFICATE_PASSWORD" /fd SHA256 /td SHA256 /tr http://timestamp.digicert.com dist\litestream.exe
-  #         Remove-Item cert.pfx
-  #
-  #     - name: Upload signed binary
-  #       env:
-  #         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-  #       run: |
-  #         gh release upload ${{ github.ref_name }} dist\litestream-*-windows-${{ matrix.arch }}.zip
-
   publish-pypi:
     name: Publish to PyPI (${{ matrix.os }}-${{ matrix.arch }})
     runs-on: ubuntu-latest
-    needs: [vfs-build-linux, vfs-build-darwin]
+    needs: [vfs-build-linux]
     environment: release
     permissions:
       id-token: write
@@ -315,18 +165,6 @@ jobs:
             src_name: litestream-vfs-linux-arm64.so
             dest_name: litestream-vfs.so
             platform_tag: manylinux_2_35_aarch64
-          - os: darwin
-            arch: amd64
-            ext: dylib
-            src_name: litestream-vfs-darwin-amd64.dylib
-            dest_name: litestream-vfs.dylib
-            platform_tag: macosx_11_0_x86_64
-          - os: darwin
-            arch: arm64
-            ext: dylib
-            src_name: litestream-vfs-darwin-arm64.dylib
-            dest_name: litestream-vfs.dylib
-            platform_tag: macosx_11_0_arm64
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -376,7 +214,7 @@ jobs:
   publish-npm:
     name: Publish to npm
     runs-on: ubuntu-latest
-    needs: [vfs-build-linux, vfs-build-darwin]
+    needs: [vfs-build-linux]
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -398,10 +236,6 @@ jobs:
              packages/npm/litestream-vfs-linux-amd64/litestream-vfs.so
           cp artifacts/vfs-linux-arm64/litestream-vfs-linux-arm64.so \
              packages/npm/litestream-vfs-linux-arm64/litestream-vfs.so
-          cp artifacts/vfs-darwin-amd64/litestream-vfs-darwin-amd64.dylib \
-             packages/npm/litestream-vfs-darwin-amd64/litestream-vfs.dylib
-          cp artifacts/vfs-darwin-arm64/litestream-vfs-darwin-arm64.dylib \
-             packages/npm/litestream-vfs-darwin-arm64/litestream-vfs.dylib
 
       - name: Get version
         id: version
@@ -447,7 +281,7 @@ jobs:
   publish-gem:
     name: Publish to RubyGems (${{ matrix.os }}-${{ matrix.arch }})
     runs-on: ubuntu-latest
-    needs: [vfs-build-linux, vfs-build-darwin]
+    needs: [vfs-build-linux]
     strategy:
       matrix:
         include:

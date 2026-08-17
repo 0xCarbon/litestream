@@ -21,6 +21,11 @@ builds:
     goarch:
       - amd64
       - arm64
+    overrides:
+      - goos: linux
+        goarch: arm64
+        env:
+          - CC=aarch64-linux-gnu-gcc
     ldflags:
       - -s -w -X main.Version={{.Version}}
 
@@ -116,7 +121,7 @@ release:
 
     ⚠️ **Windows Notice**: Windows binaries are provided for convenience but Windows is NOT an officially supported platform. Use at your own risk. Community contributions for Windows improvements are welcome.
 
-    ✅ **Supported Platforms**: Linux (amd64, arm64, armv6, armv7), macOS (amd64, arm64)
+    ✅ **Supported Platforms**: Linux (amd64, arm64)
 
     ## Installation
 

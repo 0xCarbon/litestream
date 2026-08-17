@@ -30,9 +30,9 @@ jobs:
 
       - uses: pre-commit/action@v3.0.0
 
-  vfs-build-test:
-    name: VFS Build Test (macOS)
-    runs-on: macos-latest
+  vfs-test:
+    name: VFS Tests
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 
@@ -40,11 +40,10 @@ jobs:
         with:
           go-version-file: "go.mod"
 
-      - name: Build VFS shared library
-        run: make vfs
-
-      - name: Verify shared library created
-        run: file dist/litestream-vfs.so
+      # The VFS suite (including SkipJournalPatch and short-read guards) is
+      # gated behind the vfs build tag and is not covered by the plain test job.
+      - name: Run VFS tests
+        run: go test -tags=vfs .
 
   vfs-build-test-linux:
     name: VFS Build Test (Linux)
