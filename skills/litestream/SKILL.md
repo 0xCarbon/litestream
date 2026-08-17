@@ -20,7 +20,7 @@ metadata:
 Litestream is a standalone disaster recovery tool for SQLite. It runs as a
 background process, monitors the SQLite WAL (Write-Ahead Log), converts changes
 to immutable LTX files, and replicates them to cloud storage. It uses
-`mattn/go-sqlite3` with bundled SQLCipher (CGO required; links libcrypto).
+`github.com/0xCarbon/go-sqlite3` with bundled SQLCipher (CGO required; links libcrypto).
 
 ## Quick Start
 

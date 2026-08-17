@@ -21,7 +21,6 @@ require (
 	github.com/hashicorp/golang-lru/v2 v2.0.7
 	github.com/mark3labs/mcp-go v0.32.0
 	github.com/mattn/go-shellwords v1.0.12
-	github.com/mattn/go-sqlite3 v1.14.24
 	github.com/nats-io/nats.go v1.44.0
 	github.com/pkg/sftp v1.13.6
 	github.com/prometheus/client_golang v1.17.0
@@ -51,6 +50,7 @@ require (
 )
 
 require (
+	github.com/0xCarbon/go-sqlite3 v1.14.38-0.20260817152354-d1c4d3294fa8
 	github.com/lmittmann/tint v1.1.3
 	github.com/mattn/go-isatty v0.0.20
 	github.com/pierrec/lz4/v4 v4.1.23
@@ -131,5 +131,3 @@ require (
 	google.golang.org/protobuf v1.36.11 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
-
-replace github.com/mattn/go-sqlite3 => github.com/0xCarbon/go-sqlite3 v1.14.38-0.20260515201505-c8f057756220

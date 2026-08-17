@@ -18,8 +18,8 @@ import (
 	"strings"
 	"time"
 
+	_ "github.com/0xCarbon/go-sqlite3"
 	"github.com/dustin/go-humanize"
-	_ "github.com/mattn/go-sqlite3"
 	"github.com/superfly/ltx"
 	_ "golang.org/x/crypto/x509roots/fallback"
 	"gopkg.in/yaml.v2"

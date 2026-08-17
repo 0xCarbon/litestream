@@ -1,16 +1,18 @@
 package litestream_test
 
 import (
+	"bytes"
 	"context"
 	"database/sql"
 	"encoding/hex"
 	"fmt"
+	"os"
 	"path/filepath"
 	"sync"
 	"sync/atomic"
 	"testing"
 
-	"github.com/mattn/go-sqlite3"
+	"github.com/0xCarbon/go-sqlite3"
 
 	"github.com/benbjohnson/litestream"
 	"github.com/benbjohnson/litestream/file"
@@ -184,6 +186,68 @@ func TestDB_ConcurrentDifferentKeys(t *testing.T) {
 		}()
 	}
 	wg.Wait()
+}
+
+// sqlcipher414FixtureKey is the raw key of testdata/sqlcipher-v4.14.0/fixture.db.
+func sqlcipher414FixtureKey() []byte {
+	key := make([]byte, 32)
+	for i := range key {
+		key[i] = byte(i*7 + 3)
+	}
+	return key
+}
+
+// TestSQLCipher414FixtureDecrypts pins the cross-version ciphertext
+// contract: databases written by the previous driver pin (0xCarbon fork
+// c8f057756220, SQLCipher 4.14.0 / SQLite 3.51.3) must keep opening under
+// the current pin (SQLCipher 4.17.0) with unchanged kdf/HMAC defaults.
+// Regenerate the fixture only with a deliberate compatibility decision.
+func TestSQLCipher414FixtureDecrypts(t *testing.T) {
+	fixturePath := filepath.Join("testdata", "sqlcipher-v4.14.0", "fixture.db")
+	fixture, err := os.ReadFile(fixturePath)
+	if err != nil {
+		t.Fatalf("read fixture: %v", err)
+	}
+	// Guard against an accidentally-plaintext fixture.
+	if bytes.Equal(fixture[:15], []byte("SQLite format 3")) {
+		t.Fatal("fixture is plaintext; regenerate with the recorded generator")
+	}
+
+	dbPath := filepath.Join(t.TempDir(), "db")
+	if err := os.WriteFile(dbPath, fixture, 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	// Litestream's own path: init reads the database with the key.
+	db := litestream.NewDB(dbPath)
+	db.EncryptionKeyBytes = sqlcipher414FixtureKey()
+	client := file.NewReplicaClient(t.TempDir())
+	r := litestream.NewReplicaWithClient(db, client)
+	r.MonitorEnabled = false
+	db.Replica = r
+	if err := db.Open(); err != nil {
+		t.Fatal(err)
+	}
+	if err := db.Sync(context.Background()); err != nil {
+		t.Fatalf("sync over 4.14-written database: %v", err)
+	}
+	if err := db.Close(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+
+	// And the data survives intact through the current driver.
+	verifier, err := sql.Open(registerKeyedSQLite(t, sqlcipher414FixtureKey()), dbPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer verifier.Close()
+	var payload string
+	if err := verifier.QueryRow(`SELECT payload FROM fixture ORDER BY id LIMIT 1`).Scan(&payload); err != nil {
+		t.Fatalf("read fixture rows: %v", err)
+	}
+	if payload != "sqlcipher-4.14-compat" {
+		t.Fatalf("payload = %q", payload)
+	}
 }
 
 // TestDB_EncryptionKeyStringForms verifies the accepted string key forms

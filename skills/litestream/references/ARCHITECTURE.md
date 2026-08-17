@@ -26,7 +26,7 @@ The heart of Litestream. Manages a single SQLite database.
 
 Key fields:
 - `path` / `metaPath`: Database and metadata paths
-- `db *sql.DB`: SQLite connection (via mattn/go-sqlite3, CGO + SQLCipher)
+- `db *sql.DB`: SQLite connection (via 0xCarbon/go-sqlite3, CGO + SQLCipher)
 - `f *os.File`: Long-running file descriptor
 - `rtx *sql.Tx`: Long-running read transaction (prevents checkpoint past read point)
 - `pageSize int`: Database page size (critical for lock page calculation)

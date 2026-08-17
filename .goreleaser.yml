@@ -10,7 +10,7 @@ builds:
   - id: litestream
     main: ./cmd/litestream
     binary: litestream
-    # The fork's mattn/go-sqlite3 driver builds SQLCipher (CGO, links
+    # The 0xCarbon/go-sqlite3 fork builds SQLCipher (CGO, links
     # libcrypto); pure-Go builds are no longer possible. Windows, macOS, and
     # 32-bit ARM targets are dropped until cross-CGO toolchains with libcrypto
     # are wired up; fork consumers are Linux.

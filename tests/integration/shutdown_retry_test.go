@@ -22,7 +22,7 @@ import (
 	"testing"
 	"time"
 
-	_ "github.com/mattn/go-sqlite3"
+	_ "github.com/0xCarbon/go-sqlite3"
 )
 
 // TestShutdownSyncRetry_429Errors tests that Litestream retries syncing LTX files

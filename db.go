@@ -19,7 +19,7 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/mattn/go-sqlite3"
+	"github.com/0xCarbon/go-sqlite3"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 	"github.com/superfly/ltx"
@@ -198,8 +198,11 @@ type DB struct {
 	EncryptionKey string
 
 	// EncryptionKeyBytes is the raw SQLCipher key for this database. When
-	// non-empty it takes precedence over EncryptionKey. Applied to every
-	// connection of this DB's registered driver.
+	// non-empty it takes precedence over EncryptionKey. Must be exactly 32,
+	// 48, or 80 bytes (SQLCipher raw-key forms: key / key+salt /
+	// key+HMAC+salt); other lengths are rejected at the first connection by
+	// the 0xCarbon fork. Applied to every connection of this DB's driver;
+	// set before Open.
 	EncryptionKeyBytes []byte
 
 	// sqliteDriver is this DB's own driver instance, carrying its SQLCipher
@@ -1037,7 +1040,7 @@ func (db *DB) init(ctx context.Context) (err error) {
 
 	dsn := db.path
 	// _sync=FULL restores the durability litestream had with modernc: the
-	// mattn driver defaults every connection to synchronous=NORMAL, which
+	// go-sqlite3 fork defaults every connection to synchronous=NORMAL, which
 	// can lose the newest commits on power loss in WAL mode.
 	dsn += fmt.Sprintf("?_busy_timeout=%d&_sync=FULL", db.BusyTimeout.Milliseconds())
 
