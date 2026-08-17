@@ -50,7 +50,7 @@ require (
 )
 
 require (
-	github.com/0xCarbon/go-sqlite3 v1.14.38-0.20260817152354-d1c4d3294fa8
+	github.com/0xCarbon/go-sqlite3 v1.15.0
 	github.com/lmittmann/tint v1.1.3
 	github.com/mattn/go-isatty v0.0.20
 	github.com/pierrec/lz4/v4 v4.1.23
