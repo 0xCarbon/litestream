@@ -4652,3 +4652,40 @@ func TestDB_SnapshotReaderConsistentDuringConcurrentCheckpoints(t *testing.T) {
 	default:
 	}
 }
+
+// TestDB_InitSetsSyncFull asserts litestream's own pool connections run with
+// synchronous=FULL: the mattn fork driver defaults every connection to
+// NORMAL, which would silently weaken durability for a disaster-recovery tool.
+func TestDB_InitSetsSyncFull(t *testing.T) {
+	client := &testReplicaClient{dir: t.TempDir()}
+	dbPath := filepath.Join(t.TempDir(), "db")
+	setup, err := sql.Open("sqlite3", dbPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := setup.Exec(`CREATE TABLE t (v TEXT);`); err != nil {
+		t.Fatal(err)
+	}
+	setup.Close()
+
+	db := NewDB(dbPath)
+	db.MonitorInterval = 0
+	r := NewReplicaWithClient(db, client)
+	r.MonitorEnabled = false
+	db.Replica = r
+	if err := db.Open(); err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = db.Close(context.Background()) }()
+	if err := db.init(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+
+	var sync int
+	if err := db.db.QueryRow(`PRAGMA synchronous`).Scan(&sync); err != nil {
+		t.Fatal(err)
+	}
+	if sync != 2 { // 2 == FULL
+		t.Fatalf("litestream pool connections must run synchronous=FULL (2), got %d", sync)
+	}
+}

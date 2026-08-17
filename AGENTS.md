@@ -90,3 +90,10 @@ This fork tracks upstream `benbjohnson/litestream` and adds:
   (e.g. `pin/7a606e384ee9`); never force-push or delete them.
 - **Build**: CGO required; SQLCipher links libcrypto (see Dockerfile and CI
   workflows). Pure-Go (modernc) builds are not supported in this fork.
+- **Durability**: litestream's own connections run `synchronous=FULL` (DSN
+  `_sync=FULL`), matching upstream's modernc default. Consumer connections
+  through the mattn fork default to `synchronous=NORMAL` — pass `_sync=FULL`
+  in your DSN if you need the stricter behavior.
+- **CLI**: the `litestream` binary is encryption-blind — there is no key
+  configuration; SQLCipher is a library-only feature via `DB.EncryptionKey`
+  and `DB.EncryptionKeyBytes`.

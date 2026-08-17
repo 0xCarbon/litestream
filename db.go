@@ -1053,7 +1053,10 @@ func (db *DB) init(ctx context.Context) (err error) {
 	db.dirInfo = fi
 
 	dsn := db.path
-	dsn += fmt.Sprintf("?_busy_timeout=%d", db.BusyTimeout.Milliseconds())
+	// _sync=FULL restores the durability litestream had with modernc: the
+	// mattn driver defaults every connection to synchronous=NORMAL, which
+	// can lose the newest commits on power loss in WAL mode.
+	dsn += fmt.Sprintf("?_busy_timeout=%d&_sync=FULL", db.BusyTimeout.Milliseconds())
 
 	// Register a per-database driver carrying this DB's SQLCipher key so
 	// PRAGMA key is the first SQL after sqlite3_open_v2() on every pooled
