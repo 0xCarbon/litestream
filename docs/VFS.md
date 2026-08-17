@@ -53,17 +53,10 @@ This creates:
 - `dist/litestream-vfs.a` - Static library
 - `dist/litestream-vfs.so` - Loadable SQLite extension
 
-**Platform-specific builds:**
+**Platform-specific builds (Linux only — the fork's SQLCipher links
+libcrypto, which stock macOS toolchains do not provide):**
 
 ```bash
-# macOS ARM64 (Apple Silicon)
-make vfs-darwin-arm64
-# Output: dist/litestream-vfs-darwin-arm64.dylib
-
-# macOS AMD64 (Intel)
-make vfs-darwin-amd64
-# Output: dist/litestream-vfs-darwin-amd64.dylib
-
 # Linux AMD64
 make vfs-linux-amd64
 # Output: dist/litestream-vfs-linux-amd64.so
@@ -90,6 +83,9 @@ The VFS is configured via environment variables:
 | `LITESTREAM_WRITE_ENABLED` | Enable write mode: `true` or `false` | `false` |
 | `LITESTREAM_SYNC_INTERVAL` | Write sync interval (e.g., `1s`, `500ms`) | `1s` |
 | `LITESTREAM_BUFFER_PATH` | Local write buffer file path | temp file |
+| `LITESTREAM_HYDRATION_ENABLED` | Enable background hydration: `true` or `false` | `false` |
+| `LITESTREAM_HYDRATION_PATH` | Persistent hydration file path | temp file |
+| `LITESTREAM_SKIP_JOURNAL_PATCH` | Skip the page-1 journal-mode patch — required for SQLCipher replicas: `true` or `false` | `false` |
 
 ### Replica URL Format
 

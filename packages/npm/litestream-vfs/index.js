@@ -3,15 +3,13 @@
 const path = require("path");
 const os = require("os");
 
+// Linux only: the fork's SQLCipher extension is not built for macOS.
 const PLATFORM_PACKAGES = {
-  "darwin-arm64": "litestream-vfs-darwin-arm64",
-  "darwin-x64": "litestream-vfs-darwin-amd64",
   "linux-arm64": "litestream-vfs-linux-arm64",
   "linux-x64": "litestream-vfs-linux-amd64",
 };
 
 const EXT_MAP = {
-  darwin: "litestream-vfs.dylib",
   linux: "litestream-vfs.so",
 };
 
